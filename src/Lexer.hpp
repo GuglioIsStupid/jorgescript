@@ -7,8 +7,11 @@ enum class TokenType {
 
     SET, TO, ALWAYS,
     PLUS, PRINT,
+    AS, COMMA,
+    LOADDLL_TOKEN, CALL_TOKEN,
+    AMPERSAND, ASTERISK,
 
-    TRUE, FALSE,
+    TRUE, FALSE, NOTHING,
     NUMBER,
     STRING,
     IDENT,
@@ -19,7 +22,11 @@ enum class TokenType {
     LBRACE, RBRACE,
     SEMICOLON,
 
-    END,
+    FOR, STEP, WHILE,
+
+    INSIDE, SUMMON,
+
+    END
 };
 
 struct Token {
@@ -32,6 +39,8 @@ public:
     explicit Lexer(const std::string& src);
     Token next();
 
+    bool allowLowercase = false;
+
 private:
     std::string src;
     size_t pos = 0;
@@ -41,4 +50,5 @@ private:
     Token identifier();
     Token number();
     Token string();
+
 };

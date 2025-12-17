@@ -1,0 +1,15 @@
+LOADDLL "SDL3.dll" AS SDL;
+
+CALL SDL::SDL_Init(0x00000020);
+
+SET SDLWINDOW TO SDL::SDL_CreateWindow(
+    "JorgeScript SDL3 Window",
+    100, 100,
+    800, 600,
+    0
+);
+
+IF SDLWINDOW::IS(NOTHING) THEN {
+    PRINT "Failed to create window!";
+} 
+

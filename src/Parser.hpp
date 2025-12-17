@@ -1,8 +1,9 @@
 #pragma once
-#include "Lexer.hpp"
-#include "AST.hpp"
 #include <memory>
 #include <vector>
+
+#include "AST.hpp"
+#include "Lexer.hpp"
 
 class Parser {
 public:
@@ -21,5 +22,11 @@ private:
     std::unique_ptr<Statement> parsePrint();
     std::unique_ptr<Expr> parseExpr();
     std::unique_ptr<Statement> parseIf();
+    std::unique_ptr<Statement> parseLoadDll();
+    std::unique_ptr<Statement> parseCall();
+    std::unique_ptr<Statement> parseLocalSet();
+    std::unique_ptr<Statement> parseSummon();
+    std::unique_ptr<Statement> parseWhile();
+    std::unique_ptr<Statement> parseFor();
 
 };

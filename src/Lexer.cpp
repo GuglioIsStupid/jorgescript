@@ -24,6 +24,7 @@ Token Lexer::next() {
 
     if (c == ':' && peek() == ':') {
         pos += 2;
+        allowLowercase = true;
         return {TokenType::COLONCOLON, "::"};
     }
 
@@ -37,6 +38,9 @@ Token Lexer::next() {
         case '}': return {TokenType::RBRACE, "}"};
         case ';': return {TokenType::SEMICOLON, ";"};
         case '+': return {TokenType::PLUS, "+"};
+        case ',': return {TokenType::COMMA, ","};
+        case '&': return {TokenType::AMPERSAND, "&"};
+        case '*': return {TokenType::ASTERISK, "*"};
     }
 
     throw std::runtime_error("Unknown character");
@@ -53,7 +57,7 @@ void Lexer::skipWhitespace() {
 
 Token Lexer::identifier() {
     size_t start = pos;
-    while (pos < src.size() && (std::isalnum(src[pos]) || src[pos]=='.'))
+    while (pos < src.size() && (std::isalnum(src[pos]) || src[pos]=='.' || src[pos]=='_'))
         pos++;
 
     std::string word = src.substr(start, pos - start);
@@ -65,13 +69,27 @@ Token Lexer::identifier() {
     }
 
     std::cout << "Identifier found: " << word << (bang ? "!" : "") << "\n";
+
+    if (word == "TRUE") {
+        if (!bang)
+            throw std::runtime_error("TRUE must be TRUE!");
+        return {TokenType::TRUE, "TRUE!"};
+    }
     if (word == "Untrue...") {
+        if (bang)
+            throw std::runtime_error("Unexpected !");
         return {TokenType::FALSE, "Untrue..."};
     }
+    if (word == "NOTHING") {
+        return {TokenType::NOTHING, "NOTHING"};
+    }
 
-    for(char ch : word)
-        if(std::islower(ch))
-            throw std::runtime_error("Lowercase not allowed");
+    if (!allowLowercase)
+        for (char ch : word)
+            if (std::islower((unsigned char)ch))
+                throw std::runtime_error("Lowercase not allowed");
+
+    allowLowercase = false;
 
     if (word == "IF") return {TokenType::IF, word};
     if (word == "THEN") return {TokenType::THEN, word};
@@ -82,22 +100,28 @@ Token Lexer::identifier() {
     if (word == "TO") return {TokenType::TO, word};
     if (word == "ALWAYS") return {TokenType::ALWAYS, word};
     if (word == "PRINT") return {TokenType::PRINT, word};
-
-    if (word == "TRUE") {
-        if (!bang) throw std::runtime_error("TRUE must be TRUE!");
-        return {TokenType::TRUE, "TRUE!"};
-    }
+    if (word == "AS") return {TokenType::AS, word};
+    if (word == "LOADDLL") return {TokenType::LOADDLL_TOKEN, word};
+    if (word == "CALL") return {TokenType::CALL_TOKEN, word};
+    if (word == "INSIDE") return {TokenType::INSIDE, word};
+    if (word == "SUMMON") return {TokenType::SUMMON, word};
+    if (word == "FOR") return {TokenType::FOR, word};
+    if (word == "STEP") return {TokenType::STEP, word};
+    if (word == "WHILE") return {TokenType::WHILE, word};
 
     if (bang)
         throw std::runtime_error("Unexpected !");
-
     return {TokenType::IDENT, word};
 }
 
 Token Lexer::number() {
     size_t start = pos;
-    while (pos < src.size() && (std::isdigit(src[pos]) || src[pos] == '.'))
-        pos++;
+    if (src[pos] == '0' && (pos+1 < src.size()) && (src[pos+1] == 'x' || src[pos+1] == 'X')) {
+        pos += 2;
+        while (pos < src.size() && std::isxdigit(src[pos])) pos++;
+        return {TokenType::NUMBER, src.substr(start, pos - start)};
+    }
+    while (pos < src.size() && (std::isdigit(src[pos]) || src[pos] == '.')) pos++;
     return {TokenType::NUMBER, src.substr(start, pos - start)};
 }
 

@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
         auto program = parser.parseProgram();
 
         std::cout << "Running JorgeScript\n";
+        ScopeStack.clear();
         pushScope();
         for (auto& stmt : program)
             stmt->execute();

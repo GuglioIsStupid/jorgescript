@@ -39,6 +39,9 @@ std::unique_ptr<Statement> Parser::parseStatement() {
     if(current.type == TokenType::CALL_TOKEN)
         return parseCall();
 
+    if(current.type == TokenType::RETURNTYPE_TOKEN)
+        return parseDllReturnType();
+
     if (current.type == TokenType::INSIDE)
         return parseLocalSet();
 
@@ -94,7 +97,12 @@ std::unique_ptr<Expr> Parser::parseExpr() {
     std::unique_ptr<Expr> left;
 
     // literals
-    if(current.type == TokenType::STRING) {
+    if(current.type == TokenType::LPAREN) {
+        advance();
+        left = parseExpr();
+        expect(TokenType::RPAREN);
+    }
+    else if(current.type == TokenType::STRING) {
         auto lit = std::make_unique<LiteralExpr>();
         lit->value.type = ValueType::STRING;
         lit->value.string = current.value;
@@ -121,6 +129,12 @@ std::unique_ptr<Expr> Parser::parseExpr() {
         left = std::move(lit);
         advance();
     } 
+    else if(current.type == TokenType::NOTHING) {
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->value = Value();
+        left = std::move(lit);
+        advance();
+    }
     else if(current.type == TokenType::IDENT) {
         auto var = std::make_unique<VariableExpr>();
         var->name = current.value;
@@ -267,6 +281,33 @@ std::unique_ptr<Statement> Parser::parseCall() {
     return stmt;
 }
 
+std::unique_ptr<Statement> Parser::parseDllReturnType() {
+    expect(TokenType::RETURNTYPE_TOKEN);
+
+    std::string alias = current.value;
+    expect(TokenType::IDENT);
+
+    expect(TokenType::COLONCOLON);
+
+    std::string func = current.value;
+    expect(TokenType::IDENT);
+
+    expect(TokenType::AS);
+
+    std::string returnType = current.value;
+    if (current.type != TokenType::IDENT && current.type != TokenType::STRING)
+        throw std::runtime_error("Expected type name after AS");
+    advance();
+
+    expect(TokenType::SEMICOLON);
+
+    auto stmt = std::make_unique<SetDllReturnTypeStatement>();
+    stmt->alias = alias;
+    stmt->function = func;
+    stmt->returnType = returnType;
+    return stmt;
+}
+
 std::unique_ptr<Statement> Parser::parseLocalSet() {
     expect(TokenType::INSIDE);
 
@@ -317,7 +358,14 @@ std::unique_ptr<Statement> Parser::parseSummon() {
 std::unique_ptr<Statement> Parser::parseWhile() {
     expect(TokenType::WHILE);
 
-    auto condExpr = parseExpr();
+    std::unique_ptr<Expr> condExpr;
+    if (current.type == TokenType::LPAREN) {
+        advance();
+        condExpr = parseExpr();
+        expect(TokenType::RPAREN);
+    } else {
+        condExpr = parseExpr();
+    }
 
     if (current.type == TokenType::THEN)
         advance();

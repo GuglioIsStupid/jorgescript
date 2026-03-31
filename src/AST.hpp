@@ -4,23 +4,28 @@
 #include <vector>
 #include <unordered_map>
 #include <iostream>
+#include <cstdint>
 
 struct Expr;
 struct Statement;
 
-enum class ValueType { NOTHING, NUMBER, STRING, BOOLEAN, IDK };
+enum class ValueType { NOTHING, NUMBER, STRING, BOOLEAN, POINTER, IDK };
 
 struct Value {
     ValueType type = ValueType::NOTHING;
     double number = 0;
     std::string string;
     bool boolean = false;
+    std::uintptr_t pointer = 0;
+    std::string customType;
 
     Value() : type(ValueType::NOTHING) {}
     
     Value(double n) : type(ValueType::NUMBER), number(n) {}
     Value(const std::string& s) : type(ValueType::STRING), string(s) {}
     Value(bool b) : type(ValueType::BOOLEAN), boolean(b) {}
+    Value(std::uintptr_t p, const std::string& t = "POINTER")
+        : type(ValueType::POINTER), pointer(p), customType(t) {}
 };
 
 struct Variable {
@@ -87,6 +92,13 @@ struct CallDllStatement : Statement {
     void execute() override;
 };
 
+struct SetDllReturnTypeStatement : Statement {
+    std::string alias;
+    std::string function;
+    std::string returnType;
+    void execute() override;
+};
+
 struct SummonStatement : Statement {
     std::string filename;
     std::string alias;
@@ -113,8 +125,5 @@ struct CallExpr : Expr {
     std::string function;
     std::vector<std::unique_ptr<Expr>> args;
 
-    Value evaluate() override {
-        std::cout << "CallExpr: " << function << "()" << std::endl;
-        return Value();
-    }
+    Value evaluate() override;
 };

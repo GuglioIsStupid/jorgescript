@@ -5,6 +5,9 @@
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
+#include <cstdint>
+#include <cctype>
 
 namespace {
 std::wstring utf8ToUtf16(const std::string& s) {
@@ -26,6 +29,138 @@ std::string readFile(const std::string& filename) {
     return content;
 }
 
+std::string valueToString(const Value& v) {
+    switch (v.type) {
+        case ValueType::STRING:
+            return v.string;
+        case ValueType::NUMBER:
+            return std::to_string(v.number);
+        case ValueType::BOOLEAN:
+            return v.boolean ? "TRUE!" : "FALSE!";
+        case ValueType::NOTHING:
+            return "NOTHING";
+        case ValueType::POINTER: {
+            std::ostringstream oss;
+            oss << (v.customType.empty() ? "POINTER" : v.customType)
+                << "@0x" << std::hex << std::uppercase << v.pointer;
+            return oss.str();
+        }
+        default:
+            return "IDK";
+    }
+}
+
+std::uintptr_t callRawProc(FARPROC proc, const std::vector<std::uintptr_t>& args) {
+    // todo: support more than 8 args ???
+    switch (args.size()) {
+        case 0: {
+            using Fn = std::uintptr_t(*)();
+            return reinterpret_cast<Fn>(proc)();
+        }
+        case 1: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0]);
+        }
+        case 2: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1]);
+        }
+        case 3: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1], args[2]);
+        }
+        case 4: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1], args[2], args[3]);
+        }
+        case 5: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1], args[2], args[3], args[4]);
+        }
+        case 6: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1], args[2], args[3], args[4], args[5]);
+        }
+        case 7: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        }
+        case 8: {
+            using Fn = std::uintptr_t(*)(std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t, std::uintptr_t);
+            return reinterpret_cast<Fn>(proc)(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+        }
+        default:
+            throw std::runtime_error("Too many DLL arguments (max 8)");
+    }
+}
+
+std::string normalizeTypeName(std::string typeName) {
+    for (char& ch : typeName) {
+        ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+    }
+    return typeName;
+}
+
+Value invokeDllFunction(const std::string& alias, const std::string& function, const std::vector<std::unique_ptr<Expr>>& args) {
+    auto it = LoadedDLLs.find(alias);
+    if (it == LoadedDLLs.end())
+        throw std::runtime_error("DLL not loaded: " + alias);
+
+    FARPROC proc = GetProcAddress(it->second, function.c_str());
+    if (!proc)
+        throw std::runtime_error("Function not found: " + function);
+
+    std::vector<std::string> utf8Strings;
+    std::vector<std::wstring> utf16Strings;
+    std::vector<std::uintptr_t> rawArgs;
+    rawArgs.reserve(args.size());
+
+    const bool wantsWideStrings = !function.empty() && function.back() == 'W';
+
+    for (const auto& expr : args) {
+        Value v = expr->evaluate();
+        if (v.type == ValueType::NUMBER) {
+            rawArgs.push_back(static_cast<std::uintptr_t>(static_cast<std::intptr_t>(v.number)));
+        } else if (v.type == ValueType::BOOLEAN) {
+            rawArgs.push_back(v.boolean ? 1u : 0u);
+        } else if (v.type == ValueType::STRING) {
+            if (wantsWideStrings) {
+                utf16Strings.push_back(utf8ToUtf16(v.string));
+                rawArgs.push_back(reinterpret_cast<std::uintptr_t>(utf16Strings.back().c_str()));
+            } else {
+                utf8Strings.push_back(v.string);
+                rawArgs.push_back(reinterpret_cast<std::uintptr_t>(utf8Strings.back().c_str()));
+            }
+        } else if (v.type == ValueType::POINTER) {
+            rawArgs.push_back(v.pointer);
+        } else if (v.type == ValueType::NOTHING) {
+            rawArgs.push_back(0);
+        } else {
+            throw std::runtime_error("Unsupported DLL argument type");
+        }
+    }
+
+    const std::string key = getDllSymbolKey(alias, function);
+    auto retIt = DllReturnTypes.find(key);
+    const std::string returnType = (retIt != DllReturnTypes.end()) ? retIt->second : "POINTER";
+    const std::string normalizedType = normalizeTypeName(returnType);
+
+    std::uintptr_t result = callRawProc(proc, rawArgs);
+
+    if (normalizedType == "BOOLEAN" || normalizedType == "BOOL") {
+        return Value(result != 0);
+    }
+
+    if (normalizedType == "NUMBER" || normalizedType == "INT" || normalizedType == "INT32" || normalizedType == "UINT32") {
+        return Value(static_cast<double>(static_cast<std::int64_t>(result)));
+    }
+
+    if (result == 0)
+        return Value();
+
+    return Value(result, returnType);
+}
+
 } // namespace
 
 Value VariableExpr::evaluate() {
@@ -40,12 +175,8 @@ Value BinaryExpr::evaluate() {
 
     if(op == '+') {
         if(l.type == ValueType::STRING || r.type == ValueType::STRING) {
-            std::string ls = (l.type==ValueType::STRING) ? l.string :
-                             (l.type==ValueType::NUMBER) ? std::to_string(l.number) :
-                             (l.boolean ? "TRUE!" : "FALSE!");
-            std::string rs = (r.type==ValueType::STRING) ? r.string :
-                             (r.type==ValueType::NUMBER) ? std::to_string(r.number) :
-                             (r.boolean ? "TRUE!" : "FALSE!");
+            std::string ls = valueToString(l);
+            std::string rs = valueToString(r);
             Value val;
             val.type = ValueType::STRING;
             val.string = ls + rs;
@@ -70,6 +201,8 @@ Value BinaryExpr::evaluate() {
             val.boolean = (l.string == r.string);
         } else if(l.type==ValueType::BOOLEAN) {
             val.boolean = (l.boolean == r.boolean);
+        } else if(l.type==ValueType::POINTER) {
+            val.boolean = (l.pointer == r.pointer);
         } else {
             val.boolean = false;
         }
@@ -108,6 +241,7 @@ void PrintStatement::execute() {
         case ValueType::NUMBER:  std::cout << val.number; break;
         case ValueType::BOOLEAN: std::cout << (val.boolean?"TRUE!":"Untrue..."); break;
         case ValueType::NOTHING: std::cout << "NOTHING"; break;
+        case ValueType::POINTER: std::cout << valueToString(val); break;
         default:                 std::cout << "IDK"; break;
     }
     std::cout << "\n";
@@ -132,38 +266,11 @@ void LoadDllStatement::execute() {
 }
 
 void CallDllStatement::execute() {
-    auto it = LoadedDLLs.find(alias);
-    if (it == LoadedDLLs.end())
-        throw std::runtime_error("DLL not loaded: " + alias);
+    (void)invokeDllFunction(alias, function, args);
+}
 
-    FARPROC proc = GetProcAddress(it->second, function.c_str());
-    if (!proc)
-        throw std::runtime_error("Function not found: " + function);
-
-    using StubFn = int(__stdcall*)(int, void**);
-    StubFn fn = reinterpret_cast<StubFn>(proc);
-
-    std::vector<void*> argsPtrs;
-    std::vector<std::wstring> wstrings;
-    std::vector<intptr_t> ints;
-
-    for (auto& expr : args) {
-        Value v = expr->evaluate();
-        if (v.type == ValueType::NUMBER) {
-            ints.push_back(static_cast<intptr_t>(v.number));
-            argsPtrs.push_back(reinterpret_cast<void*>(ints.back()));
-        } else if (v.type == ValueType::BOOLEAN) {
-            ints.push_back(v.boolean ? 1 : 0);
-            argsPtrs.push_back(reinterpret_cast<void*>(ints.back()));
-        } else if (v.type == ValueType::STRING) {
-            wstrings.push_back(utf8ToUtf16(v.string));
-            argsPtrs.push_back((void*)wstrings.back().c_str());
-        } else {
-            throw std::runtime_error("Unsupported argument type");
-        }
-    }
-
-    fn(static_cast<int>(argsPtrs.size()), argsPtrs.data());
+void SetDllReturnTypeStatement::execute() {
+    DllReturnTypes[getDllSymbolKey(alias, function)] = returnType;
 }
 
 void SummonStatement::execute() {
@@ -214,4 +321,12 @@ void ForStatement::execute() {
     }
 
     ScopeStack.back().erase(varName);
+}
+
+Value CallExpr::evaluate() {
+    auto* varExpr = dynamic_cast<VariableExpr*>(object.get());
+    if (!varExpr)
+        throw std::runtime_error("DLL call object must be an identifier alias");
+
+    return invokeDllFunction(varExpr->name, function, args);
 }

@@ -1,0 +1,32 @@
+LOADDLL "SDL3.dll" AS SDL;
+RETURNTYPE SDL::SDL_CreateWindow AS "SDL_Window";
+RETURNTYPE SDL::SDL_HasEvent AS BOOLEAN;
+ALWAYS SET SDL_EVENT_QUIT TO 0x100;
+
+CALL SDL::SDL_Init(0x00000020);
+
+SET SDLWINDOW TO SDL::SDL_CreateWindow(
+    "JorgeScript SDL3 Window",
+    800, 600,
+    0
+);
+
+IF SDLWINDOW::IS(NOTHING) THEN {
+    PRINT "Failed to create window!";
+} 
+
+SET RUNNING TO TRUE!;
+
+WHILE (RUNNING) {
+    CALL SDL::SDL_PumpEvents();
+
+    SET SHOULDQUIT TO SDL::SDL_HasEvent(SDL_EVENT_QUIT);
+    IF SHOULDQUIT::IS(TRUE!) THEN {
+        SET RUNNING TO Untrue...;
+    }
+
+    CALL SDL::SDL_Delay(16);
+}
+
+CALL SDL::SDL_DestroyWindow(SDLWINDOW);
+CALL SDL::SDL_Quit();

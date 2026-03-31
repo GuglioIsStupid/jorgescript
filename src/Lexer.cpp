@@ -103,6 +103,7 @@ Token Lexer::identifier() {
     if (word == "AS") return {TokenType::AS, word};
     if (word == "LOADDLL") return {TokenType::LOADDLL_TOKEN, word};
     if (word == "CALL") return {TokenType::CALL_TOKEN, word};
+    if (word == "RETURNTYPE") return {TokenType::RETURNTYPE_TOKEN, word};
     if (word == "INSIDE") return {TokenType::INSIDE, word};
     if (word == "SUMMON") return {TokenType::SUMMON, word};
     if (word == "FOR") return {TokenType::FOR, word};

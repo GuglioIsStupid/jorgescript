@@ -9,6 +9,7 @@ enum class TokenType {
     PLUS, PRINT,
     AS, COMMA,
     LOADDLL_TOKEN, CALL_TOKEN,
+    RETURNTYPE_TOKEN,
     AMPERSAND, ASTERISK,
 
     TRUE, FALSE, NOTHING,

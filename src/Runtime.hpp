@@ -12,6 +12,11 @@ using Scope = std::unordered_map<std::string, Variable>;
 inline std::vector<Scope> ScopeStack;
 inline std::unordered_map<std::string, Scope> FileScopes;
 inline std::unordered_map<std::string, HMODULE> LoadedDLLs;
+inline std::unordered_map<std::string, std::string> DllReturnTypes;
+
+inline std::string getDllSymbolKey(const std::string& alias, const std::string& function) {
+    return alias + "::" + function;
+}
 
 inline void pushScope() { ScopeStack.emplace_back(); }
 inline void popScope() { ScopeStack.pop_back(); }

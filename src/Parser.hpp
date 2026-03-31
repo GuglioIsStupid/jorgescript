@@ -24,6 +24,7 @@ private:
     std::unique_ptr<Statement> parseIf();
     std::unique_ptr<Statement> parseLoadDll();
     std::unique_ptr<Statement> parseCall();
+    std::unique_ptr<Statement> parseDllReturnType();
     std::unique_ptr<Statement> parseLocalSet();
     std::unique_ptr<Statement> parseSummon();
     std::unique_ptr<Statement> parseWhile();

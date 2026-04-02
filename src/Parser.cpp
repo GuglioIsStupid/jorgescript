@@ -94,6 +94,45 @@ std::unique_ptr<Statement> Parser::parseIf() {
 }
 
 std::unique_ptr<Expr> Parser::parseExpr() {
+    return parseAddSubtract();
+}
+
+std::unique_ptr<Expr> Parser::parseAddSubtract() {
+    std::unique_ptr<Expr> left = parseMultDivMod();
+
+    while(current.type == TokenType::PLUS || current.type == TokenType::MINUS) {
+        char op = (current.type == TokenType::PLUS) ? '+' : '-';
+        advance();
+        auto right = parseMultDivMod();
+        auto bin = std::make_unique<BinaryExpr>();
+        bin->left = std::move(left);
+        bin->right = std::move(right);
+        bin->op = op;
+        left = std::move(bin);
+    }
+
+    return left;
+}
+
+std::unique_ptr<Expr> Parser::parseMultDivMod() {
+    std::unique_ptr<Expr> left = parsePrimary();
+
+    while(current.type == TokenType::ASTERISK || current.type == TokenType::SLASH || current.type == TokenType::PERCENT) {
+        char op = (current.type == TokenType::ASTERISK) ? '*' : 
+                  (current.type == TokenType::SLASH) ? '/' : '%';
+        advance();
+        auto right = parsePrimary();
+        auto bin = std::make_unique<BinaryExpr>();
+        bin->left = std::move(left);
+        bin->right = std::move(right);
+        bin->op = op;
+        left = std::move(bin);
+    }
+
+    return left;
+}
+
+std::unique_ptr<Expr> Parser::parsePrimary() {
     std::unique_ptr<Expr> left;
 
     // literals
@@ -176,6 +215,18 @@ std::unique_ptr<Expr> Parser::parseExpr() {
         left = std::move(var);
         advance();
     }
+    else if (current.type == TokenType::MINUS) {
+        advance();
+        auto expr = parsePrimary();
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->value.type = ValueType::NUMBER;
+        lit->value.number = 0;
+        auto bin = std::make_unique<BinaryExpr>();
+        bin->left = std::move(lit);
+        bin->right = std::move(expr);
+        bin->op = '-';
+        left = std::move(bin);
+    }
     else if (current.type == TokenType::ASTERISK) {
         advance();
         if(current.type != TokenType::IDENT)
@@ -187,17 +238,6 @@ std::unique_ptr<Expr> Parser::parseExpr() {
     }
     else {
         throw std::runtime_error("Unexpected token in expression");
-    }
-
-    // handle + operator for strings/numbers
-    while(current.type == TokenType::PLUS) {
-        advance();
-        auto right = parseExpr();
-        auto bin = std::make_unique<BinaryExpr>();
-        bin->left = std::move(left);
-        bin->right = std::move(right);
-        bin->op = '+';
-        left = std::move(bin);
     }
 
     return left;

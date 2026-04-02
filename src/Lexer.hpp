@@ -6,11 +6,11 @@ enum class TokenType {
     IS, ISNOT,
 
     SET, TO, ALWAYS,
-    PLUS, PRINT,
+    PLUS, MINUS, ASTERISK, SLASH, PERCENT, PRINT,
     AS, COMMA,
     LOADDLL_TOKEN, CALL_TOKEN,
     RETURNTYPE_TOKEN,
-    AMPERSAND, ASTERISK,
+    AMPERSAND,
 
     TRUE, FALSE, NOTHING,
     NUMBER,
@@ -18,7 +18,7 @@ enum class TokenType {
     IDENT,
 
     COLONCOLON,
-    EQUAL,
+    EQUAL, NOTEQUAL,
     LPAREN, RPAREN,
     LBRACE, RBRACE,
     SEMICOLON,

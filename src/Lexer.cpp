@@ -38,9 +38,12 @@ Token Lexer::next() {
         case '}': return {TokenType::RBRACE, "}"};
         case ';': return {TokenType::SEMICOLON, ";"};
         case '+': return {TokenType::PLUS, "+"};
+        case '-': return {TokenType::MINUS, "-"};
+        case '*': return {TokenType::ASTERISK, "*"};
+        case '/': return {TokenType::SLASH, "/"};
+        case '%': return {TokenType::PERCENT, "%"};
         case ',': return {TokenType::COMMA, ","};
         case '&': return {TokenType::AMPERSAND, "&"};
-        case '*': return {TokenType::ASTERISK, "*"};
     }
 
     throw std::runtime_error("Unknown character");

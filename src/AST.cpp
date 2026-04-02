@@ -190,6 +190,46 @@ Value BinaryExpr::evaluate() {
         }
         throw std::runtime_error("Invalid types for +");
     }
+    else if(op == '-') {
+        if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
+            Value val;
+            val.type = ValueType::NUMBER;
+            val.number = l.number - r.number;
+            return val;
+        }
+        throw std::runtime_error("Invalid types for -");
+    }
+    else if(op == '*') {
+        if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
+            Value val;
+            val.type = ValueType::NUMBER;
+            val.number = l.number * r.number;
+            return val;
+        }
+        throw std::runtime_error("Invalid types for *");
+    }
+    else if(op == '/') {
+        if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
+            if(r.number == 0)
+                throw std::runtime_error("Division by zero");
+            Value val;
+            val.type = ValueType::NUMBER;
+            val.number = l.number / r.number;
+            return val;
+        }
+        throw std::runtime_error("Invalid types for /");
+    }
+    else if(op == '%') {
+        if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
+            if(r.number == 0)
+                throw std::runtime_error("Modulo by zero");
+            Value val;
+            val.type = ValueType::NUMBER;
+            val.number = static_cast<double>(static_cast<long long>(l.number) % static_cast<long long>(r.number));
+            return val;
+        }
+        throw std::runtime_error("Invalid types for %");
+    }
     else if(op == '=') {
         Value val;
         val.type = ValueType::BOOLEAN;

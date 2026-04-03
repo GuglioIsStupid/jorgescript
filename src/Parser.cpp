@@ -2,6 +2,17 @@
 #include <stdexcept>
 #include <memory>
 
+namespace {
+std::string joinNamespace(const std::vector<std::string>& segments, size_t endExclusive) {
+    std::string result;
+    for (size_t i = 0; i < endExclusive; ++i) {
+        if (i > 0) result += "::";
+        result += segments[i];
+    }
+    return result;
+}
+}
+
 Parser::Parser(Lexer& lexer) : lexer(lexer) {
     advance();
 }
@@ -24,6 +35,12 @@ std::vector<std::unique_ptr<Statement>> Parser::parseProgram() {
 }
 
 std::unique_ptr<Statement> Parser::parseStatement() {
+    if(current.type == TokenType::FUNCTION_TOKEN)
+        return parseFunctionDecl();
+
+    if(current.type == TokenType::RETURN_TOKEN)
+        return parseReturn();
+
     if(current.type == TokenType::SET || current.type == TokenType::ALWAYS)
         return parseSet();
 
@@ -60,28 +77,70 @@ std::unique_ptr<Statement> Parser::parseStatement() {
 std::unique_ptr<Statement> Parser::parseIf() {
     expect(TokenType::IF);
 
-    std::string ident = current.value;
-    expect(TokenType::IDENT);
-    expect(TokenType::COLONCOLON);
-    expect(TokenType::IS);
-    expect(TokenType::LPAREN);
+    std::unique_ptr<Expr> conditionExpr;
 
-    auto condExpr = parseExpr();
+    if (current.type == TokenType::LPAREN) {
+        advance();
+        conditionExpr = parseExpr();
+        expect(TokenType::RPAREN);
+    } else if (current.type == TokenType::IDENT) {
+        std::string ident = current.value;
+        advance();
 
-    expect(TokenType::RPAREN);
+        if (current.type == TokenType::COLONCOLON) {
+            advance();
+            expect(TokenType::IS);
+            expect(TokenType::LPAREN);
+
+            auto condExpr = parseExpr();
+
+            expect(TokenType::RPAREN);
+
+            auto varExpr = std::make_unique<VariableExpr>();
+            varExpr->name = ident;
+
+            auto bin = std::make_unique<BinaryExpr>();
+            bin->left = std::move(varExpr);
+            bin->right = std::move(condExpr);
+            bin->op = "==";
+            conditionExpr = std::move(bin);
+        } else {
+            // Allow direct comparison syntax: IF X > 10 THEN { ... }
+            std::unique_ptr<Expr> left = std::make_unique<VariableExpr>();
+            static_cast<VariableExpr*>(left.get())->name = ident;
+
+            while (current.type == TokenType::EQEQ || current.type == TokenType::NOTEQUAL ||
+                   current.type == TokenType::GREATER || current.type == TokenType::LESS ||
+                   current.type == TokenType::GREATEREQ || current.type == TokenType::LESSEQ) {
+                std::string op;
+                if (current.type == TokenType::EQEQ) op = "==";
+                else if (current.type == TokenType::NOTEQUAL) op = "!=";
+                else if (current.type == TokenType::GREATER) op = ">";
+                else if (current.type == TokenType::LESS) op = "<";
+                else if (current.type == TokenType::GREATEREQ) op = ">=";
+                else if (current.type == TokenType::LESSEQ) op = "<=";
+
+                advance();
+                auto right = parseAddSubtract();
+
+                auto bin = std::make_unique<BinaryExpr>();
+                bin->left = std::move(left);
+                bin->right = std::move(right);
+                bin->op = op;
+                left = std::move(bin);
+            }
+
+            conditionExpr = std::move(left);
+        }
+    } else {
+        conditionExpr = parseExpr();
+    }
+
     expect(TokenType::THEN);
     expect(TokenType::LBRACE);
 
     auto stmt = std::make_unique<IfStatement>();
-    
-    auto varExpr = std::make_unique<VariableExpr>();
-    varExpr->name = ident;
-
-    auto bin = std::make_unique<BinaryExpr>();
-    bin->left = std::move(varExpr);
-    bin->right = std::move(condExpr);
-    bin->op = '=';
-    stmt->condition = std::move(bin);
+    stmt->condition = std::move(conditionExpr);
 
     while(current.type != TokenType::RBRACE)
         stmt->body.push_back(parseStatement());
@@ -94,14 +153,40 @@ std::unique_ptr<Statement> Parser::parseIf() {
 }
 
 std::unique_ptr<Expr> Parser::parseExpr() {
-    return parseAddSubtract();
+    return parseComparison();
+}
+
+std::unique_ptr<Expr> Parser::parseComparison() {
+    std::unique_ptr<Expr> left = parseAddSubtract();
+
+    while (current.type == TokenType::EQEQ || current.type == TokenType::NOTEQUAL ||
+           current.type == TokenType::GREATER || current.type == TokenType::LESS ||
+           current.type == TokenType::GREATEREQ || current.type == TokenType::LESSEQ) {
+        std::string op;
+        if (current.type == TokenType::EQEQ) op = "==";
+        else if (current.type == TokenType::NOTEQUAL) op = "!=";
+        else if (current.type == TokenType::GREATER) op = ">";
+        else if (current.type == TokenType::LESS) op = "<";
+        else if (current.type == TokenType::GREATEREQ) op = ">=";
+        else if (current.type == TokenType::LESSEQ) op = "<=";
+
+        advance();
+        auto right = parseAddSubtract();
+        auto bin = std::make_unique<BinaryExpr>();
+        bin->left = std::move(left);
+        bin->right = std::move(right);
+        bin->op = op;
+        left = std::move(bin);
+    }
+
+    return left;
 }
 
 std::unique_ptr<Expr> Parser::parseAddSubtract() {
     std::unique_ptr<Expr> left = parseMultDivMod();
 
     while(current.type == TokenType::PLUS || current.type == TokenType::MINUS) {
-        char op = (current.type == TokenType::PLUS) ? '+' : '-';
+        std::string op = (current.type == TokenType::PLUS) ? "+" : "-";
         advance();
         auto right = parseMultDivMod();
         auto bin = std::make_unique<BinaryExpr>();
@@ -117,9 +202,10 @@ std::unique_ptr<Expr> Parser::parseAddSubtract() {
 std::unique_ptr<Expr> Parser::parseMultDivMod() {
     std::unique_ptr<Expr> left = parsePrimary();
 
-    while(current.type == TokenType::ASTERISK || current.type == TokenType::SLASH || current.type == TokenType::PERCENT) {
-        char op = (current.type == TokenType::ASTERISK) ? '*' : 
-                  (current.type == TokenType::SLASH) ? '/' : '%';
+    while(current.type == TokenType::ASTERISK || current.type == TokenType::SLASH || current.type == TokenType::FLOORDIV || current.type == TokenType::PERCENT) {
+        std::string op = (current.type == TokenType::ASTERISK) ? "*" : 
+                         (current.type == TokenType::SLASH) ? "/" :
+                         (current.type == TokenType::FLOORDIV) ? "//" : "%";
         advance();
         auto right = parsePrimary();
         auto bin = std::make_unique<BinaryExpr>();
@@ -174,25 +260,54 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         left = std::move(lit);
         advance();
     }
+    else if(current.type == TokenType::POTENTIONABLY) {
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->value.type = ValueType::POTENTIAL_BOOLEAN;
+        left = std::move(lit);
+        advance();
+    }
+    else if(current.type == TokenType::LBRACKET) {
+        advance();
+
+        auto arr = std::make_unique<ArrayLiteralExpr>();
+        if (current.type != TokenType::RBRACKET) {
+            arr->elements.push_back(parseExpr());
+            while (current.type == TokenType::COMMA) {
+                advance();
+                arr->elements.push_back(parseExpr());
+            }
+        }
+
+        expect(TokenType::RBRACKET);
+        left = std::move(arr);
+    }
     else if(current.type == TokenType::IDENT) {
+        const std::string firstIdent = current.value;
         auto var = std::make_unique<VariableExpr>();
-        var->name = current.value;
+        var->name = firstIdent;
         left = std::move(var);
         advance();
 
         if(current.type == TokenType::COLONCOLON) {
-            advance();
+            std::vector<std::string> segments;
+            segments.push_back(firstIdent);
 
-            if(current.type != TokenType::IDENT && current.type != TokenType::IS)
-                throw std::runtime_error("Expected function name after ::");
-            std::string funcName = current.value;
-            advance();
+            while (current.type == TokenType::COLONCOLON) {
+                advance();
+                if(current.type != TokenType::IDENT && current.type != TokenType::IS)
+                    throw std::runtime_error("Expected identifier after ::");
+                segments.push_back(current.value);
+                advance();
+            }
+
+            if (segments.size() < 2)
+                throw std::runtime_error("Expected function name after namespace");
 
             expect(TokenType::LPAREN);
 
             auto callExpr = std::make_unique<CallExpr>();
-            callExpr->object = std::move(left);
-            callExpr->function = funcName;
+            callExpr->namespaceName = joinNamespace(segments, segments.size() - 1);
+            callExpr->function = segments.back();
 
             if(current.type != TokenType::RPAREN) {
                 callExpr->args.push_back(parseExpr());
@@ -224,7 +339,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         auto bin = std::make_unique<BinaryExpr>();
         bin->left = std::move(lit);
         bin->right = std::move(expr);
-        bin->op = '-';
+        bin->op = "-";
         left = std::move(bin);
     }
     else if (current.type == TokenType::ASTERISK) {
@@ -240,6 +355,22 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         throw std::runtime_error("Unexpected token in expression");
     }
 
+    return parsePostfix(std::move(left));
+}
+
+std::unique_ptr<Expr> Parser::parsePostfix(std::unique_ptr<Expr> left) {
+    while (current.type == TokenType::LBRACKET) {
+        advance();
+
+        auto idx = parseExpr();
+        expect(TokenType::RBRACKET);
+
+        auto access = std::make_unique<IndexExpr>();
+        access->target = std::move(left);
+        access->index = std::move(idx);
+        left = std::move(access);
+    }
+
     return left;
 }
 
@@ -250,11 +381,20 @@ std::unique_ptr<Statement> Parser::parseSet() {
     expect(TokenType::SET);
     std::string name = current.value;
     expect(TokenType::IDENT);
+
+    std::unique_ptr<Expr> indexExpr;
+    if (current.type == TokenType::LBRACKET) {
+        advance();
+        indexExpr = parseExpr();
+        expect(TokenType::RBRACKET);
+    }
+
     expect(TokenType::TO);
 
     auto stmt = std::make_unique<SetStatement>();
     stmt->name = name;
     stmt->isconstant = isconstant;
+    stmt->indexExpr = std::move(indexExpr);
     stmt->expr = parseExpr();
 
     expect(TokenType::SEMICOLON);
@@ -460,5 +600,52 @@ std::unique_ptr<Statement> Parser::parseFor() {
 
     if(current.type == TokenType::SEMICOLON) advance();
 
+    return stmt;
+}
+
+std::unique_ptr<Statement> Parser::parseFunctionDecl() {
+    expect(TokenType::FUNCTION_TOKEN);
+
+    std::string name = current.value;
+    expect(TokenType::IDENT);
+
+    expect(TokenType::LPAREN);
+
+    std::vector<std::string> params;
+    if (current.type != TokenType::RPAREN) {
+        params.push_back(current.value);
+        expect(TokenType::IDENT);
+
+        while (current.type == TokenType::COMMA) {
+            advance();
+            params.push_back(current.value);
+            expect(TokenType::IDENT);
+        }
+    }
+
+    expect(TokenType::RPAREN);
+    expect(TokenType::LBRACE);
+
+    auto stmt = std::make_unique<FunctionDeclStatement>();
+    stmt->name = name;
+    stmt->params = std::move(params);
+
+    while(current.type != TokenType::RBRACE)
+        stmt->body.push_back(parseStatement());
+
+    expect(TokenType::RBRACE);
+
+    if(current.type == TokenType::SEMICOLON) advance();
+
+    return stmt;
+}
+
+std::unique_ptr<Statement> Parser::parseReturn() {
+    expect(TokenType::RETURN_TOKEN);
+
+    auto stmt = std::make_unique<ReturnStatement>();
+    stmt->expr = parseExpr();
+
+    expect(TokenType::SEMICOLON);
     return stmt;
 }

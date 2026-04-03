@@ -1,5 +1,3 @@
-SUMMON "math.jorge";
-
 SET NAME TO "FUCKKKKKKK";
 SET COUNT TO 101;
 SET FLAG TO TRUE!;
@@ -12,6 +10,20 @@ PRINT UNTRUEFLAG;
 IF FLAG::IS(TRUE!) THEN {
     PRINT "Godmode is " + GODMODE;
 }
+
+PRINT 10 > 4;
+PRINT 10 < 4;
+PRINT 10 == 10;
+PRINT 10 != 4;
+PRINT 10 >= 10;
+PRINT 4 <= 10;
+
+PRINT 5 + 5;
+PRINT 5 - 5;
+PRINT 5 * 5;
+PRINT 5 % 5;
+PRINT 5 / 2;
+PRINT 5 // 2;
 
 LOADDLL "user32.dll" AS USER32;
 

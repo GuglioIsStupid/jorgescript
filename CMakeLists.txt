@@ -10,15 +10,29 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(RESOURCES_HEADER "${CMAKE_BINARY_DIR}/generated/Resources.hpp")
+file(GLOB STDLIB_FILES "${PROJECT_SOURCE_DIR}/stdlib/*.jorge")
+
+add_custom_command(
+    OUTPUT "${RESOURCES_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/generated"
+    COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/generateResources.py" "${RESOURCES_HEADER}" ${STDLIB_FILES}
+    DEPENDS ${STDLIB_FILES} "${PROJECT_SOURCE_DIR}/generateResources.py"
+    COMMENT "Generating embedded resources"
+)
+
 add_executable(jorgescript
     src/main.cpp
     src/Lexer.cpp
     src/Parser.cpp
     src/AST.cpp
+    "${RESOURCES_HEADER}"
 )
 
 target_include_directories(jorgescript PRIVATE
     ${PROJECT_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 if (MSVC)

@@ -1,0 +1,138 @@
+NAMESPACE BIT;
+
+FUNCTION AND(A, B) {
+	SET X TO A;
+	SET Y TO B;
+	SET RESULT TO 0;
+	SET BIT TO 1;
+	SET N TO X;
+
+	SET TAKEY TO Y > N;
+	IF TAKEY::IS(TRUE!) THEN {
+		SET N TO Y;
+	}
+
+	WHILE (N > 0) {
+		SET AX TO X % 2;
+		SET BY TO Y % 2;
+		SET ADD TO Untrue...;
+
+		SET C1 TO AX == 1;
+		IF C1::IS(TRUE!) THEN {
+			SET C2 TO BY == 1;
+			IF C2::IS(TRUE!) THEN {
+				SET ADD TO TRUE!;
+			}
+		}
+
+		IF ADD::IS(TRUE!) THEN {
+			SET RESULT TO RESULT + BIT;
+		}
+
+		SET X TO (X - AX) / 2;
+		SET Y TO (Y - BY) / 2;
+		SET BIT TO BIT * 2;
+		SET N TO (N - (N % 2)) / 2;
+	}
+
+	RETURN RESULT;
+}
+
+FUNCTION BOR(A, B) {
+	SET X TO A;
+	SET Y TO B;
+	SET RESULT TO 0;
+	SET BIT TO 1;
+	SET N TO X;
+
+	SET TAKEY TO Y > N;
+	IF TAKEY::IS(TRUE!) THEN {
+		SET N TO Y;
+	}
+
+	WHILE (N > 0) {
+		SET AX TO X % 2;
+		SET BY TO Y % 2;
+		SET ADD TO Untrue...;
+
+		SET C1 TO AX == 1;
+		IF C1::IS(TRUE!) THEN {
+			SET ADD TO TRUE!;
+		}
+
+		SET C2 TO BY == 1;
+		IF C2::IS(TRUE!) THEN {
+			SET ADD TO TRUE!;
+		}
+
+		IF ADD::IS(TRUE!) THEN {
+			SET RESULT TO RESULT + BIT;
+		}
+
+		SET X TO (X - AX) / 2;
+		SET Y TO (Y - BY) / 2;
+		SET BIT TO BIT * 2;
+		SET N TO (N - (N % 2)) / 2;
+	}
+
+	RETURN RESULT;
+}
+
+FUNCTION XOR(A, B) {
+	SET X TO A;
+	SET Y TO B;
+	SET RESULT TO 0;
+	SET BIT TO 1;
+	SET N TO X;
+
+	SET TAKEY TO Y > N;
+	IF TAKEY::IS(TRUE!) THEN {
+		SET N TO Y;
+	}
+
+	WHILE (N > 0) {
+		SET AX TO X % 2;
+		SET BY TO Y % 2;
+		SET ADD TO AX != BY;
+
+		IF ADD::IS(TRUE!) THEN {
+			SET RESULT TO RESULT + BIT;
+		}
+
+		SET X TO (X - AX) / 2;
+		SET Y TO (Y - BY) / 2;
+		SET BIT TO BIT * 2;
+		SET N TO (N - (N % 2)) / 2;
+	}
+
+	RETURN RESULT;
+}
+
+FUNCTION BNOT(A) {
+	RETURN BIT::XOR(A, 0xFFFFFFFF);
+}
+
+FUNCTION SHL(A, BITS) {
+	SET RESULT TO A;
+	SET I TO 0;
+
+	WHILE (I < BITS) {
+		SET RESULT TO RESULT * 2;
+		SET I TO I + 1;
+	}
+
+	RETURN RESULT;
+}
+
+FUNCTION SHR(A, BITS) {
+	SET RESULT TO A;
+	SET I TO 0;
+
+	WHILE (I < BITS) {
+		SET RESULT TO (RESULT - (RESULT % 2)) / 2;
+		SET I TO I + 1;
+	}
+
+	RETURN RESULT;
+}
+

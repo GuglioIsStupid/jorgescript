@@ -8,14 +8,16 @@
 
 struct Expr;
 struct Statement;
+struct ArrayObject;
 
-enum class ValueType { NOTHING, NUMBER, STRING, BOOLEAN, POINTER, IDK };
+enum class ValueType { NOTHING, NUMBER, STRING, BOOLEAN, POTENTIAL_BOOLEAN, ARRAY, POINTER, IDK };
 
 struct Value {
     ValueType type = ValueType::NOTHING;
     double number = 0;
     std::string string;
     bool boolean = false;
+    std::shared_ptr<ArrayObject> array;
     std::uintptr_t pointer = 0;
     std::string customType;
 
@@ -24,8 +26,14 @@ struct Value {
     Value(double n) : type(ValueType::NUMBER), number(n) {}
     Value(const std::string& s) : type(ValueType::STRING), string(s) {}
     Value(bool b) : type(ValueType::BOOLEAN), boolean(b) {}
+    Value(std::shared_ptr<ArrayObject> a) : type(ValueType::ARRAY), array(std::move(a)) {}
     Value(std::uintptr_t p, const std::string& t = "POINTER")
         : type(ValueType::POINTER), pointer(p), customType(t) {}
+};
+
+struct ArrayObject {
+    std::vector<Value> indexed;
+    std::unordered_map<std::string, Value> named;
 };
 
 struct Variable {
@@ -51,7 +59,18 @@ struct VariableExpr : Expr {
 struct BinaryExpr : Expr {
     std::unique_ptr<Expr> left;
     std::unique_ptr<Expr> right;
-    char op;
+    std::string op;
+    Value evaluate() override;
+};
+
+struct ArrayLiteralExpr : Expr {
+    std::vector<std::unique_ptr<Expr>> elements;
+    Value evaluate() override;
+};
+
+struct IndexExpr : Expr {
+    std::unique_ptr<Expr> target;
+    std::unique_ptr<Expr> index;
     Value evaluate() override;
 };
 
@@ -60,9 +79,15 @@ struct Statement {
     virtual void execute() = 0;
 };
 
+struct FunctionDefinition {
+    std::vector<std::string> params;
+    std::vector<std::unique_ptr<Statement>> body;
+};
+
 struct SetStatement : Statement {
     std::string name;
     std::unique_ptr<Expr> expr;
+    std::unique_ptr<Expr> indexExpr;
     bool isconstant = false;
     bool isLocal = false;
     void execute() override;
@@ -120,8 +145,20 @@ struct ForStatement : Statement {
     void execute() override;
 };
 
+struct FunctionDeclStatement : Statement {
+    std::string name;
+    std::vector<std::string> params;
+    std::vector<std::unique_ptr<Statement>> body;
+    void execute() override;
+};
+
+struct ReturnStatement : Statement {
+    std::unique_ptr<Expr> expr;
+    void execute() override;
+};
+
 struct CallExpr : Expr {
-    std::unique_ptr<Expr> object;
+    std::string namespaceName;
     std::string function;
     std::vector<std::unique_ptr<Expr>> args;
 

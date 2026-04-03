@@ -2,14 +2,21 @@
 #include "Parser.hpp"
 #include "AST.hpp"
 #include "Runtime.hpp"
+#include "Resources.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
 #include <cstdint>
 #include <cctype>
+#include <random>
+#include <cmath>
 
 namespace {
+struct FunctionReturnSignal {
+    Value value;
+};
+
 std::wstring utf8ToUtf16(const std::string& s) {
     if (s.empty()) return {};
     int size = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
@@ -29,6 +36,41 @@ std::string readFile(const std::string& filename) {
     return content;
 }
 
+std::string trim(std::string s) {
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front()))) {
+        s.erase(s.begin());
+    }
+    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back()))) {
+        s.pop_back();
+    }
+    return s;
+}
+
+std::string parseNamespaceDirective(std::string& src) {
+    std::istringstream in(src);
+    std::ostringstream out;
+    std::string line;
+    std::string namespaceName;
+    bool consumedDirective = false;
+
+    while (std::getline(in, line)) {
+        const std::string stripped = trim(line);
+        if (!consumedDirective && stripped.rfind("NAMESPACE ", 0) == 0) {
+            namespaceName = trim(stripped.substr(10));
+            if (!namespaceName.empty() && namespaceName.back() == ';') {
+                namespaceName.pop_back();
+                namespaceName = trim(namespaceName);
+            }
+            consumedDirective = true;
+            continue;
+        }
+        out << line << '\n';
+    }
+
+    src = out.str();
+    return namespaceName;
+}
+
 std::string valueToString(const Value& v) {
     switch (v.type) {
         case ValueType::STRING:
@@ -37,6 +79,31 @@ std::string valueToString(const Value& v) {
             return std::to_string(v.number);
         case ValueType::BOOLEAN:
             return v.boolean ? "TRUE!" : "FALSE!";
+        case ValueType::POTENTIAL_BOOLEAN:
+            return "POTENTIONABLY";
+        case ValueType::ARRAY: {
+            if (!v.array) {
+                return "[]";
+            }
+
+            std::ostringstream oss;
+            oss << "[";
+            for (size_t i = 0; i < v.array->indexed.size(); ++i) {
+                if (i > 0) oss << ", ";
+                oss << valueToString(v.array->indexed[i]);
+            }
+            if (!v.array->named.empty()) {
+                if (!v.array->indexed.empty()) oss << ", ";
+                bool first = true;
+                for (const auto& [k, val] : v.array->named) {
+                    if (!first) oss << ", ";
+                    first = false;
+                    oss << k << "=" << valueToString(val);
+                }
+            }
+            oss << "]";
+            return oss.str();
+        }
         case ValueType::NOTHING:
             return "NOTHING";
         case ValueType::POINTER: {
@@ -48,6 +115,19 @@ std::string valueToString(const Value& v) {
         default:
             return "IDK";
     }
+}
+
+bool randomBoolean() {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    static thread_local std::uniform_int_distribution<int> dist(0, 1);
+    return dist(rng) == 1;
+}
+
+Value resolvePotentialBoolean(const Value& v) {
+    if (v.type != ValueType::POTENTIAL_BOOLEAN) {
+        return v;
+    }
+    return Value(randomBoolean());
 }
 
 std::uintptr_t callRawProc(FARPROC proc, const std::vector<std::uintptr_t>& args) {
@@ -99,6 +179,57 @@ std::string normalizeTypeName(std::string typeName) {
         ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
     }
     return typeName;
+}
+
+std::string getQualifiedFunctionName(const std::string& namespaceName, const std::string& functionName) {
+    if (namespaceName.empty()) {
+        return functionName;
+    }
+    return namespaceName + "::" + functionName;
+}
+
+Value invokeUserFunction(const std::string& qualifiedName, const std::vector<std::unique_ptr<Expr>>& args) {
+    auto fnIt = UserFunctions.find(qualifiedName);
+    if (fnIt == UserFunctions.end()) {
+        throw std::runtime_error("Undefined function: " + qualifiedName);
+    }
+
+    const auto& fn = fnIt->second;
+    if (args.size() != fn->params.size()) {
+        throw std::runtime_error("Function argument mismatch for " + qualifiedName);
+    }
+
+    std::vector<Value> evaluatedArgs;
+    evaluatedArgs.reserve(args.size());
+    for (const auto& arg : args) {
+        evaluatedArgs.push_back(arg->evaluate());
+    }
+
+    pushScope();
+    for (size_t i = 0; i < fn->params.size(); ++i) {
+        ScopeStack.back()[fn->params[i]] = {evaluatedArgs[i], false};
+    }
+
+    try {
+        for (const auto& stmt : fn->body) {
+            stmt->execute();
+        }
+    } catch (const FunctionReturnSignal& signal) {
+        popScope();
+        return signal.value;
+    }
+
+    popScope();
+    return Value();
+}
+
+Value invokeNamespaceFunction(const std::string& namespaceName, const std::string& function, const std::vector<std::unique_ptr<Expr>>& args) {
+    const std::string qualifiedName = getQualifiedFunctionName(namespaceName, function);
+    if (UserFunctions.contains(qualifiedName)) {
+        return invokeUserFunction(qualifiedName, args);
+    }
+
+    throw std::runtime_error("Undefined namespaced function: " + qualifiedName);
 }
 
 Value invokeDllFunction(const std::string& alias, const std::string& function, const std::vector<std::unique_ptr<Expr>>& args) {
@@ -166,14 +297,57 @@ Value invokeDllFunction(const std::string& alias, const std::string& function, c
 Value VariableExpr::evaluate() {
     Variable* v = findVariable(name);
     if(!v) throw std::runtime_error("Undefined variable: " + name);
+    if (v->value.type == ValueType::POTENTIAL_BOOLEAN) {
+        return Value(randomBoolean());
+    }
     return v->value;
 }
 
-Value BinaryExpr::evaluate() {
-    Value l = left->evaluate();
-    Value r = right->evaluate();
+Value ArrayLiteralExpr::evaluate() {
+    auto arr = std::make_shared<ArrayObject>();
+    for (auto& elem : elements) {
+        arr->indexed.push_back(elem->evaluate());
+    }
+    return Value(arr);
+}
 
-    if(op == '+') {
+Value IndexExpr::evaluate() {
+    Value targetValue = target->evaluate();
+    if (targetValue.type != ValueType::ARRAY || !targetValue.array) {
+        throw std::runtime_error("Index access requires an array");
+    }
+
+    Value idx = index->evaluate();
+    if (idx.type == ValueType::STRING) {
+        auto it = targetValue.array->named.find(idx.string);
+        if (it == targetValue.array->named.end()) {
+            return Value();
+        }
+        return it->second;
+    }
+
+    if (idx.type != ValueType::NUMBER) {
+        throw std::runtime_error("Array index must be number or string");
+    }
+
+    if (std::trunc(idx.number) != idx.number) {
+        throw std::runtime_error("Array numeric index must be an integer");
+    }
+
+    const long long logicalIndex = static_cast<long long>(idx.number);
+    const long long storageIndex = logicalIndex + 1;
+    if (storageIndex < 0 || static_cast<size_t>(storageIndex) >= targetValue.array->indexed.size()) {
+        return Value();
+    }
+
+    return targetValue.array->indexed[static_cast<size_t>(storageIndex)];
+}
+
+Value BinaryExpr::evaluate() {
+    Value l = resolvePotentialBoolean(left->evaluate());
+    Value r = resolvePotentialBoolean(right->evaluate());
+
+    if(op == "+") {
         if(l.type == ValueType::STRING || r.type == ValueType::STRING) {
             std::string ls = valueToString(l);
             std::string rs = valueToString(r);
@@ -190,7 +364,7 @@ Value BinaryExpr::evaluate() {
         }
         throw std::runtime_error("Invalid types for +");
     }
-    else if(op == '-') {
+    else if(op == "-") {
         if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
             Value val;
             val.type = ValueType::NUMBER;
@@ -199,7 +373,7 @@ Value BinaryExpr::evaluate() {
         }
         throw std::runtime_error("Invalid types for -");
     }
-    else if(op == '*') {
+    else if(op == "*") {
         if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
             Value val;
             val.type = ValueType::NUMBER;
@@ -208,7 +382,7 @@ Value BinaryExpr::evaluate() {
         }
         throw std::runtime_error("Invalid types for *");
     }
-    else if(op == '/') {
+    else if(op == "/") {
         if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
             if(r.number == 0)
                 throw std::runtime_error("Division by zero");
@@ -219,7 +393,18 @@ Value BinaryExpr::evaluate() {
         }
         throw std::runtime_error("Invalid types for /");
     }
-    else if(op == '%') {
+    else if(op == "//") {
+        if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
+            if(r.number == 0)
+                throw std::runtime_error("Division by zero");
+            Value val;
+            val.type = ValueType::NUMBER;
+            val.number = std::floor(l.number / r.number);
+            return val;
+        }
+        throw std::runtime_error("Invalid types for //");
+    }
+    else if(op == "%") {
         if(l.type==ValueType::NUMBER && r.type==ValueType::NUMBER) {
             if(r.number == 0)
                 throw std::runtime_error("Modulo by zero");
@@ -230,7 +415,53 @@ Value BinaryExpr::evaluate() {
         }
         throw std::runtime_error("Invalid types for %");
     }
-    else if(op == '=') {
+
+    auto makeBoolean = [](bool b) {
+        Value val;
+        val.type = ValueType::BOOLEAN;
+        val.boolean = b;
+        return val;
+    };
+
+    auto valueEquals = [](const Value& a, const Value& b) {
+        if (a.type != b.type) return false;
+        switch (a.type) {
+            case ValueType::NUMBER: return a.number == b.number;
+            case ValueType::STRING: return a.string == b.string;
+            case ValueType::BOOLEAN: return a.boolean == b.boolean;
+            case ValueType::POINTER: return a.pointer == b.pointer;
+            case ValueType::NOTHING: return true;
+            default: return false;
+        }
+    };
+
+    if(op == "==") {
+        return makeBoolean(valueEquals(l, r));
+    }
+
+    if(op == "!=") {
+        return makeBoolean(!valueEquals(l, r));
+    }
+
+    if(op == ">" || op == "<" || op == ">=" || op == "<=") {
+        if (l.type == ValueType::NUMBER && r.type == ValueType::NUMBER) {
+            if (op == ">") return makeBoolean(l.number > r.number);
+            if (op == "<") return makeBoolean(l.number < r.number);
+            if (op == ">=") return makeBoolean(l.number >= r.number);
+            return makeBoolean(l.number <= r.number);
+        }
+
+        if (l.type == ValueType::STRING && r.type == ValueType::STRING) {
+            if (op == ">") return makeBoolean(l.string > r.string);
+            if (op == "<") return makeBoolean(l.string < r.string);
+            if (op == ">=") return makeBoolean(l.string >= r.string);
+            return makeBoolean(l.string <= r.string);
+        }
+
+        throw std::runtime_error("Invalid types for comparison operator " + op);
+    }
+
+    else if(op == "=") {
         Value val;
         val.type = ValueType::BOOLEAN;
         if(l.type != r.type) {
@@ -254,6 +485,45 @@ Value BinaryExpr::evaluate() {
 
 void SetStatement::execute() {
     Value val = expr->evaluate();
+    
+    if (indexExpr) {
+        Variable* indexedVar = findVariable(name);
+        if (!indexedVar) {
+            ScopeStack.front()[name] = {Value(std::make_shared<ArrayObject>()), false};
+            indexedVar = findVariable(name);
+        }
+
+        if (indexedVar->isconstant)
+            throw std::runtime_error("Cannot modify constant: " + name);
+
+        if (indexedVar->value.type != ValueType::ARRAY || !indexedVar->value.array) {
+            throw std::runtime_error("Indexed assignment requires array variable: " + name);
+        }
+
+        Value idx = indexExpr->evaluate();
+        if (idx.type == ValueType::STRING) {
+            indexedVar->value.array->named[idx.string] = val;
+            return;
+        }
+
+        if (idx.type != ValueType::NUMBER)
+            throw std::runtime_error("Array index must be number or string");
+
+        if (std::trunc(idx.number) != idx.number)
+            throw std::runtime_error("Array numeric index must be an integer");
+
+        const long long logicalIndex = static_cast<long long>(idx.number);
+        const long long storageIndex = logicalIndex + 1;
+        if (storageIndex < 0)
+            throw std::runtime_error("Array index out of range (minimum is -1)");
+
+        if (static_cast<size_t>(storageIndex) >= indexedVar->value.array->indexed.size()) {
+            indexedVar->value.array->indexed.resize(static_cast<size_t>(storageIndex) + 1);
+        }
+
+        indexedVar->value.array->indexed[static_cast<size_t>(storageIndex)] = val;
+        return;
+    }
 
     if (isLocal) {
         auto& localScope = ScopeStack.back();
@@ -275,11 +545,12 @@ void SetStatement::execute() {
 }
 
 void PrintStatement::execute() {
-    Value val = expr->evaluate();
+    Value val = resolvePotentialBoolean(expr->evaluate());
     switch(val.type){
         case ValueType::STRING:  std::cout << val.string; break;
         case ValueType::NUMBER:  std::cout << val.number; break;
         case ValueType::BOOLEAN: std::cout << (val.boolean?"TRUE!":"Untrue..."); break;
+        case ValueType::POTENTIAL_BOOLEAN: std::cout << (randomBoolean()?"TRUE!":"Untrue..."); break;
         case ValueType::NOTHING: std::cout << "NOTHING"; break;
         case ValueType::POINTER: std::cout << valueToString(val); break;
         default:                 std::cout << "IDK"; break;
@@ -288,7 +559,7 @@ void PrintStatement::execute() {
 }
 
 void IfStatement::execute() {
-    Value cond = condition->evaluate();
+    Value cond = resolvePotentialBoolean(condition->evaluate());
     if(cond.type != ValueType::BOOLEAN)
         throw std::runtime_error("IF condition must be boolean");
     if(cond.boolean) {
@@ -314,16 +585,43 @@ void SetDllReturnTypeStatement::execute() {
 }
 
 void SummonStatement::execute() {
-    std::string src = readFile(filename);
+    std::string src;
+    
+    // Check if this is a standard library (STD.*)
+    if (filename.substr(0, 4) == "STD." || filename.substr(0, 4) == "std.") {
+        // Construct the resource name by appending .jorge
+        std::string resourceName = filename + ".jorge";
+        
+        // Check if the resource exists
+        std::string_view resourceContent = Resources::getResource(resourceName);
+        if (resourceContent.empty()) {
+            throw std::runtime_error("Standard library not found: " + filename);
+        }
+        
+        src = std::string(resourceContent);
+    } else {
+        // Load from file system
+        src = readFile(filename);
+    }
+
+    const std::string declaredNamespace = parseNamespaceDirective(src);
 
     Lexer lexer(src);
     Parser parser(lexer);
     auto program = parser.parseProgram();
 
     ScopeStack.push_back({});
+    if (!declaredNamespace.empty()) {
+        NamespaceStack.push_back(declaredNamespace);
+    }
 
     for (auto& stmt : program)
         stmt->execute();
+
+    if (!declaredNamespace.empty()) {
+        FileScopes[declaredNamespace] = ScopeStack.back();
+        NamespaceStack.pop_back();
+    }
 
     if (!alias.empty()) {
         FileScopes[alias] = ScopeStack.back();
@@ -364,9 +662,30 @@ void ForStatement::execute() {
 }
 
 Value CallExpr::evaluate() {
-    auto* varExpr = dynamic_cast<VariableExpr*>(object.get());
-    if (!varExpr)
-        throw std::runtime_error("DLL call object must be an identifier alias");
+    if (LoadedDLLs.contains(namespaceName)) {
+        return invokeDllFunction(namespaceName, function, args);
+    }
 
-    return invokeDllFunction(varExpr->name, function, args);
+    if (FileScopes.contains(namespaceName)) {
+        return invokeNamespaceFunction(namespaceName, function, args);
+    }
+
+    throw std::runtime_error("Unknown call namespace: " + namespaceName);
+}
+
+void FunctionDeclStatement::execute() {
+    std::string activeNamespace;
+    if (!NamespaceStack.empty()) {
+        activeNamespace = NamespaceStack.back();
+    }
+
+    auto def = std::make_shared<FunctionDefinition>();
+    def->params = std::move(params);
+    def->body = std::move(body);
+
+    UserFunctions[getQualifiedFunctionName(activeNamespace, name)] = std::move(def);
+}
+
+void ReturnStatement::execute() {
+    throw FunctionReturnSignal{expr->evaluate()};
 }

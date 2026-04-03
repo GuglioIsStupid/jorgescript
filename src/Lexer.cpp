@@ -28,10 +28,39 @@ Token Lexer::next() {
         return {TokenType::COLONCOLON, "::"};
     }
 
+    if (c == '/' && peek() == '/') {
+        pos += 2;
+        return {TokenType::FLOORDIV, "//"};
+    }
+
+    if (c == '=' && peek() == '=') {
+        pos += 2;
+        return {TokenType::EQEQ, "=="};
+    }
+
+    if (c == '!' && peek() == '=') {
+        pos += 2;
+        return {TokenType::NOTEQUAL, "!="};
+    }
+
+    if (c == '>' && peek() == '=') {
+        pos += 2;
+        return {TokenType::GREATEREQ, ">="};
+    }
+
+    if (c == '<' && peek() == '=') {
+        pos += 2;
+        return {TokenType::LESSEQ, "<="};
+    }
+
     pos++;
 
     switch (c) {
         case '=': return {TokenType::EQUAL, "="};
+        case '>': return {TokenType::GREATER, ">"};
+        case '<': return {TokenType::LESS, "<"};
+        case '[': return {TokenType::LBRACKET, "["};
+        case ']': return {TokenType::RBRACKET, "]"};
         case '(': return {TokenType::LPAREN, "("};
         case ')': return {TokenType::RPAREN, ")"};
         case '{': return {TokenType::LBRACE, "{"};
@@ -54,8 +83,19 @@ char Lexer::peek() const {
 }
 
 void Lexer::skipWhitespace() {
-    while (pos < src.size() && std::isspace(src[pos]))
-        pos++;
+    while (pos < src.size()) {
+        while (pos < src.size() && std::isspace(static_cast<unsigned char>(src[pos])))
+            pos++;
+
+        if (pos < src.size() && src[pos] == '#') {
+            pos++;
+            while (pos < src.size() && src[pos] != '\n' && src[pos] != '\r')
+                pos++;
+            continue;
+        }
+
+        break;
+    }
 }
 
 Token Lexer::identifier() {
@@ -86,6 +126,9 @@ Token Lexer::identifier() {
     if (word == "NOTHING") {
         return {TokenType::NOTHING, "NOTHING"};
     }
+    if (word == "POTENTIONABLY") {
+        return {TokenType::POTENTIONABLY, "POTENTIONABLY"};
+    }
 
     if (!allowLowercase)
         for (char ch : word)
@@ -99,6 +142,8 @@ Token Lexer::identifier() {
     if (word == "OR") return {TokenType::OR, word};
     if (word == "IS") return {TokenType::IS, word};
     if (word == "ISNOT") return {TokenType::ISNOT, word};
+    if (word == "FUNCTION") return {TokenType::FUNCTION_TOKEN, word};
+    if (word == "RETURN") return {TokenType::RETURN_TOKEN, word};
     if (word == "SET") return {TokenType::SET, word};
     if (word == "TO") return {TokenType::TO, word};
     if (word == "ALWAYS") return {TokenType::ALWAYS, word};

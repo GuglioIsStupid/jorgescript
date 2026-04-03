@@ -13,6 +13,8 @@ inline std::vector<Scope> ScopeStack;
 inline std::unordered_map<std::string, Scope> FileScopes;
 inline std::unordered_map<std::string, HMODULE> LoadedDLLs;
 inline std::unordered_map<std::string, std::string> DllReturnTypes;
+inline std::unordered_map<std::string, std::shared_ptr<FunctionDefinition>> UserFunctions;
+inline std::vector<std::string> NamespaceStack;
 
 inline std::string getDllSymbolKey(const std::string& alias, const std::string& function) {
     return alias + "::" + function;

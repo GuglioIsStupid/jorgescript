@@ -1,0 +1,38 @@
+NAMESPACE MATH;
+
+FUNCTION ABS(X) {
+    IF X < 0 THEN {
+        RETURN -X;
+    }
+
+    RETURN X;
+}
+
+FUNCTION MIN(A, B) {
+    IF A < B THEN {
+        RETURN A;
+    }
+
+    RETURN B;
+}
+
+FUNCTION MAX(A, B) {
+    IF A > B THEN {
+        RETURN A;
+    }
+
+    RETURN B;
+}
+
+FUNCTION CLAMP(X, MINVAL, MAXVAL) {
+    IF X < MINVAL THEN {
+        RETURN MINVAL;
+    }
+
+    IF X > MAXVAL THEN {
+        RETURN MAXVAL;
+    }
+
+    RETURN X;
+}
+

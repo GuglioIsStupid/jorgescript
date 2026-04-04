@@ -1,8 +1,6 @@
 #include "AST.hpp"
 #include "ClibRuntime.hpp"
 #include "Runtime.hpp"
-#include "StringFunctions.hpp"
-#include "TestsFunctions.hpp"
 #include "ValueUtils.hpp"
 #include <cmath>
 #include <stdexcept>
@@ -196,15 +194,6 @@ Value BinaryExpr::evaluate() {
 }
 
 Value CallExpr::evaluate() {
-    if (namespaceName == "STRING") {
-        return invokeStringFunction(function, args);
-    }
-
-    Value nativeResult;
-    if (tryInvokeNativeNamespaceFunction(namespaceName, function, args, nativeResult)) {
-        return nativeResult;
-    }
-
     if (LoadedCLIBs.find(namespaceName) != LoadedCLIBs.end()) {
         return invokeClibFunction(namespaceName, function, args);
     }

@@ -50,14 +50,14 @@ std::unique_ptr<Statement> Parser::parseStatement() {
     if(current.type == TokenType::IF)
         return parseIf();
 
-    if(current.type == TokenType::LOADDLL_TOKEN)
-        return parseLoadDll();
+    if(current.type == TokenType::LOADCLIB_TOKEN)
+        return parseLoadClib();
 
-    if(current.type == TokenType::CALL_TOKEN)
-        return parseCall();
+    if(current.type == TokenType::CALLCLIB_TOKEN)
+        return parseCallClib();
 
-    if(current.type == TokenType::RETURNTYPE_TOKEN)
-        return parseDllReturnType();
+    if(current.type == TokenType::CLIBRETURNTYPE_TOKEN)
+        return parseClibReturnType();
 
     if (current.type == TokenType::INSIDE)
         return parseLocalSet();
@@ -71,7 +71,17 @@ std::unique_ptr<Statement> Parser::parseStatement() {
     if (current.type == TokenType::FOR)
         return parseFor();
 
+    if (current.type == TokenType::IDENT)
+        return parseExprStatement();
+
     throw std::runtime_error("Unknown statement");
+}
+
+std::unique_ptr<Statement> Parser::parseExprStatement() {
+    auto stmt = std::make_unique<ExprStatement>();
+    stmt->expr = parseExpr();
+    expect(TokenType::SEMICOLON);
+    return stmt;
 }
 
 std::unique_ptr<Statement> Parser::parseIf() {
@@ -105,7 +115,6 @@ std::unique_ptr<Statement> Parser::parseIf() {
             bin->op = "==";
             conditionExpr = std::move(bin);
         } else {
-            // Allow direct comparison syntax: IF X > 10 THEN { ... }
             std::unique_ptr<Expr> left = std::make_unique<VariableExpr>();
             static_cast<VariableExpr*>(left.get())->name = ident;
 
@@ -411,10 +420,10 @@ std::unique_ptr<Statement> Parser::parsePrint() {
     return stmt;
 }
 
-std::unique_ptr<Statement> Parser::parseLoadDll() {
-    expect(TokenType::LOADDLL_TOKEN);
+std::unique_ptr<Statement> Parser::parseLoadClib() {
+    expect(TokenType::LOADCLIB_TOKEN);
 
-    std::string dll = current.value;
+    std::string clib = current.value;
     expect(TokenType::STRING);
 
     expect(TokenType::AS);
@@ -424,14 +433,14 @@ std::unique_ptr<Statement> Parser::parseLoadDll() {
 
     expect(TokenType::SEMICOLON);
 
-    auto stmt = std::make_unique<LoadDllStatement>();
-    stmt->dllName = dll;
+    auto stmt = std::make_unique<LoadClibStatement>();
+    stmt->clibName = clib;
     stmt->alias = alias;
     return stmt;
 }
 
-std::unique_ptr<Statement> Parser::parseCall() {
-    expect(TokenType::CALL_TOKEN);
+std::unique_ptr<Statement> Parser::parseCallClib() {
+    expect(TokenType::CALLCLIB_TOKEN);
 
     std::string alias = current.value;
     expect(TokenType::IDENT);
@@ -443,7 +452,7 @@ std::unique_ptr<Statement> Parser::parseCall() {
 
     expect(TokenType::LPAREN);
 
-    auto stmt = std::make_unique<CallDllStatement>();
+    auto stmt = std::make_unique<CallClibStatement>();
     stmt->alias = alias;
     stmt->function = func;
 
@@ -461,8 +470,8 @@ std::unique_ptr<Statement> Parser::parseCall() {
     return stmt;
 }
 
-std::unique_ptr<Statement> Parser::parseDllReturnType() {
-    expect(TokenType::RETURNTYPE_TOKEN);
+std::unique_ptr<Statement> Parser::parseClibReturnType() {
+    expect(TokenType::CLIBRETURNTYPE_TOKEN);
 
     std::string alias = current.value;
     expect(TokenType::IDENT);
@@ -481,7 +490,7 @@ std::unique_ptr<Statement> Parser::parseDllReturnType() {
 
     expect(TokenType::SEMICOLON);
 
-    auto stmt = std::make_unique<SetDllReturnTypeStatement>();
+    auto stmt = std::make_unique<SetClibReturnTypeStatement>();
     stmt->alias = alias;
     stmt->function = func;
     stmt->returnType = returnType;

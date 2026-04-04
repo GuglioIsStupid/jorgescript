@@ -20,6 +20,7 @@ private:
     std::unique_ptr<Statement> parseStatement();
     std::unique_ptr<Statement> parseSet();
     std::unique_ptr<Statement> parsePrint();
+    std::unique_ptr<Statement> parseExprStatement();
     std::unique_ptr<Expr> parseExpr();
     std::unique_ptr<Expr> parseComparison();
     std::unique_ptr<Expr> parseAddSubtract();
@@ -27,9 +28,9 @@ private:
     std::unique_ptr<Expr> parsePrimary();
     std::unique_ptr<Expr> parsePostfix(std::unique_ptr<Expr> left);
     std::unique_ptr<Statement> parseIf();
-    std::unique_ptr<Statement> parseLoadDll();
-    std::unique_ptr<Statement> parseCall();
-    std::unique_ptr<Statement> parseDllReturnType();
+    std::unique_ptr<Statement> parseLoadClib();
+    std::unique_ptr<Statement> parseCallClib();
+    std::unique_ptr<Statement> parseClibReturnType();
     std::unique_ptr<Statement> parseLocalSet();
     std::unique_ptr<Statement> parseSummon();
     std::unique_ptr<Statement> parseWhile();

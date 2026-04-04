@@ -98,26 +98,31 @@ struct PrintStatement : Statement {
     void execute() override;
 };
 
+struct ExprStatement : Statement {
+    std::unique_ptr<Expr> expr;
+    void execute() override;
+};
+
 struct IfStatement : Statement {
     std::unique_ptr<Expr> condition;
     std::vector<std::unique_ptr<Statement>> body;
     void execute() override;
 };
 
-struct LoadDllStatement : Statement {
-    std::string dllName;
+struct LoadClibStatement : Statement {
+    std::string clibName;
     std::string alias;
     void execute() override;
 };
 
-struct CallDllStatement : Statement {
+struct CallClibStatement : Statement {
     std::string alias;
     std::string function;
     std::vector<std::unique_ptr<Expr>> args;
     void execute() override;
 };
 
-struct SetDllReturnTypeStatement : Statement {
+struct SetClibReturnTypeStatement : Statement {
     std::string alias;
     std::string function;
     std::string returnType;

@@ -1,0 +1,16 @@
+SUMMON "STD.STRING";
+
+PRINT STRING::LEN("Hello World");
+PRINT STRING::SUBSTR("Hello World", 6, 5);
+PRINT STRING::FIND("Hello World", "World");
+PRINT STRING::REPLACE("foo bar foo", "foo", "baz");
+PRINT STRING::TRIM("   spaced   ");
+PRINT STRING::UPPER("MiXeD");
+PRINT STRING::LOWER("MiXeD");
+PRINT STRING::STARTSWITH("hello", "he");
+PRINT STRING::ENDSWITH("hello", "lo");
+PRINT STRING::CONTAINS("hello", "ell");
+PRINT STRING::REPEAT("ha", 3);
+
+SET PARTS TO STRING::SPLIT("a,b,c", ",");
+PRINT STRING::JOIN(PARTS, "-");

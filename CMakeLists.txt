@@ -24,14 +24,21 @@ add_custom_command(
 
 add_executable(jorgescript
     src/main.cpp
-    src/Lexer.cpp
-    src/Parser.cpp
-    src/AST.cpp
+    src/frontend/Lexer.cpp
+    src/frontend/Parser.cpp
+    src/runtime/ValueUtils.cpp
+    src/runtime/ClibRuntime.cpp
+    src/runtime/StringFunctions.cpp
+    src/runtime/TestsFunctions.cpp
+    src/ast/ASTExpressions.cpp
+    src/runtime/ASTStatements.cpp
     "${RESOURCES_HEADER}"
 )
 
 target_include_directories(jorgescript PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/src/frontend
+    ${PROJECT_SOURCE_DIR}/src/runtime
+    ${PROJECT_SOURCE_DIR}/src/ast
     ${CMAKE_BINARY_DIR}/generated
 )
 
@@ -39,6 +46,10 @@ if (MSVC)
     target_compile_options(jorgescript PRIVATE /W4 /permissive-)
 else()
     target_compile_options(jorgescript PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if (UNIX AND NOT APPLE)
+    target_link_libraries(jorgescript PRIVATE dl)
 endif()
 
 if (NOT CMAKE_BUILD_TYPE)

@@ -1,5 +1,7 @@
 NAMESPACE BIT;
 
+# TODO :: maybe implement these to c++ too ??
+
 FUNCTION AND(A, B) {
 	SET X TO A;
 	SET Y TO B;

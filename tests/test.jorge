@@ -25,9 +25,9 @@ PRINT 5 % 5;
 PRINT 5 / 2;
 PRINT 5 // 2;
 
-LOADDLL "user32.dll" AS USER32;
+LOADCLIB "user32" AS USER32;
 
-CALL USER32::MessageBoxW(
+CALLCLIB USER32::MessageBoxW(
     0,
     "HELLO FROM JORGESCRIPT",
     "JORGE",

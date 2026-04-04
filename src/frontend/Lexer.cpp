@@ -149,9 +149,9 @@ Token Lexer::identifier() {
     if (word == "ALWAYS") return {TokenType::ALWAYS, word};
     if (word == "PRINT") return {TokenType::PRINT, word};
     if (word == "AS") return {TokenType::AS, word};
-    if (word == "LOADDLL") return {TokenType::LOADDLL_TOKEN, word};
-    if (word == "CALL") return {TokenType::CALL_TOKEN, word};
-    if (word == "RETURNTYPE") return {TokenType::RETURNTYPE_TOKEN, word};
+    if (word == "LOADCLIB" || word == "LOADDLL") return {TokenType::LOADCLIB_TOKEN, word};
+    if (word == "CALLCLIB" || word == "CALL") return {TokenType::CALLCLIB_TOKEN, word};
+    if (word == "CLIBRETURNTYPE" || word == "RETURNTYPE") return {TokenType::CLIBRETURNTYPE_TOKEN, word};
     if (word == "INSIDE") return {TokenType::INSIDE, word};
     if (word == "SUMMON") return {TokenType::SUMMON, word};
     if (word == "FOR") return {TokenType::FOR, word};

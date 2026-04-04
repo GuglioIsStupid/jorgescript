@@ -1,5 +1,14 @@
 NAMESPACE MATH;
 
+# maybe implement this into c++ for some performance if i really care enough
+
+ALWAYS SET PI TO 3.141592653589793;
+ALWAYS SET TWO_PI TO 6.283185307179586;
+ALWAYS SET HALF_PI TO 1.5707963267948966;
+ALWAYS SET E TO 2.718281828459045;
+ALWAYS SET LN10 TO 2.302585092994046;
+ALWAYS SET EPS TO 0.000000001;
+
 FUNCTION ABS(X) {
     IF X < 0 THEN {
         RETURN -X;
@@ -36,3 +45,325 @@ FUNCTION CLAMP(X, MINVAL, MAXVAL) {
     RETURN X;
 }
 
+FUNCTION IS_INTEGER_HELPER(X) {
+    RETURN MATH::ABS(X - MATH::FLOOR(X)) < EPS;
+}
+
+FUNCTION NORMALIZE_ANGLE_HELPER(X) {
+    INSIDE SET A TO X;
+
+    WHILE A > PI {
+        INSIDE SET A TO A - TWO_PI;
+    }
+
+    WHILE A < -PI {
+        INSIDE SET A TO A + TWO_PI;
+    }
+
+    RETURN A;
+}
+
+FUNCTION SIN(X) {
+    INSIDE SET A TO MATH::NORMALIZE_ANGLE_HELPER(X);
+    INSIDE SET A2 TO A * A;
+
+    # https://en.wikipedia.org/wiki/Trigonometric_functions#Series_expansions
+    INSIDE SET TERM TO A;
+    INSIDE SET RESULT TO TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (2 * 3);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (4 * 5);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (6 * 7);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (8 * 9);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (10 * 11);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    RETURN RESULT;
+}
+
+FUNCTION COS(X) {
+    INSIDE SET A TO MATH::NORMALIZE_ANGLE_HELPER(X);
+    INSIDE SET A2 TO A * A;
+
+    # https://en.wikipedia.org/wiki/Trigonometric_functions#Definitions_in_analysis
+    INSIDE SET TERM TO 1;
+    INSIDE SET RESULT TO TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (1 * 2);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (3 * 4);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (5 * 6);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (7 * 8);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    INSIDE SET TERM TO TERM * (-A2) / (9 * 10);
+    INSIDE SET RESULT TO RESULT + TERM;
+
+    RETURN RESULT;
+}
+
+FUNCTION TAN(X) {
+    INSIDE SET C TO MATH::COS(X);
+    IF (MATH::ABS(C) < EPS) THEN {
+        RETURN NOTHING;
+    }
+
+    RETURN MATH::SIN(X) / C;
+}
+
+FUNCTION ASIN(X) {
+    IF X < -1 THEN {
+        RETURN NOTHING;
+    }
+
+    IF X > 1 THEN {
+        RETURN NOTHING;
+    }
+
+    # newtons method !!
+    INSIDE SET Y TO X;
+    INSIDE SET I TO 0;
+    WHILE I < 12 {
+        INSIDE SET CY TO MATH::COS(Y);
+        IF (MATH::ABS(CY) < EPS) THEN {
+            RETURN Y;
+        }
+
+        INSIDE SET Y TO Y - ((MATH::SIN(Y) - X) / CY);
+        INSIDE SET I TO I + 1;
+    }
+
+    RETURN Y;
+}
+
+FUNCTION ACOS(X) {
+    INSIDE SET A TO MATH::ASIN(X);
+    IF A::IS(NOTHING) THEN {
+        RETURN NOTHING;
+    }
+
+    RETURN HALF_PI - A;
+}
+
+FUNCTION ATAN(X) {
+    INSIDE SET D TO MATH::SQRT(1 + (X * X));
+    IF D::IS(NOTHING) THEN {
+        RETURN NOTHING;
+    }
+
+    RETURN MATH::ASIN(X / D);
+}
+
+FUNCTION ATAN2(Y, X) {
+    IF X > 0 THEN {
+        RETURN MATH::ATAN(Y / X);
+    }
+
+    IF X < 0 THEN {
+        IF Y >= 0 THEN {
+            RETURN MATH::ATAN(Y / X) + PI;
+        }
+        RETURN MATH::ATAN(Y / X) - PI;
+    }
+
+    IF Y > 0 THEN {
+        RETURN HALF_PI;
+    }
+
+    IF Y < 0 THEN {
+        RETURN -HALF_PI;
+    }
+
+    RETURN 0;
+}
+
+FUNCTION SQRT(X) {
+    IF X < 0 THEN {
+        RETURN NOTHING;
+    }
+
+    IF X == 0 THEN {
+        RETURN 0;
+    }
+
+    INSIDE SET G TO X;
+    IF G < 1 THEN {
+        INSIDE SET G TO 1;
+    }
+
+    INSIDE SET I TO 0;
+    WHILE I < 20 {
+        INSIDE SET G TO (G + (X / G)) / 2;
+        INSIDE SET I TO I + 1;
+    }
+
+    RETURN G;
+}
+
+FUNCTION POW(X, Y) {
+    IF Y == 0 THEN {
+        RETURN 1;
+    }
+
+    INSIDE SET ISINT TO MATH::IS_INTEGER_HELPER(Y);
+    IF ISINT::IS(TRUE!) THEN {
+        INSIDE SET N TO MATH::FLOOR(MATH::ABS(Y));
+        INSIDE SET BASE TO X;
+        INSIDE SET RESULT TO 1;
+
+        WHILE N > 0 {
+            IF (N % 2 == 1) THEN {
+                INSIDE SET RESULT TO RESULT * BASE;
+            }
+
+            INSIDE SET BASE TO BASE * BASE;
+            INSIDE SET N TO N // 2;
+        }
+
+        IF Y < 0 THEN {
+            IF RESULT == 0 THEN {
+                RETURN NOTHING;
+            }
+            RETURN 1 / RESULT;
+        }
+
+        RETURN RESULT;
+    }
+
+    IF X <= 0 THEN {
+        RETURN NOTHING;
+    }
+
+    RETURN MATH::EXP(Y * MATH::LOG(X));
+}
+
+FUNCTION EXP(X) {
+    # some sikmple range reductions
+    INSIDE SET K TO MATH::FLOOR(X);
+    INSIDE SET R TO X - K;
+
+    INSIDE SET TERM TO 1;
+    INSIDE SET SUM TO 1;
+    INSIDE SET N TO 1;
+    WHILE N <= 20 {
+        INSIDE SET TERM TO TERM * (R / N);
+        INSIDE SET SUM TO SUM + TERM;
+        INSIDE SET N TO N + 1;
+    }
+
+    IF K > 0 THEN {
+        INSIDE SET I TO 0;
+        WHILE I < K {
+            INSIDE SET SUM TO SUM * E;
+            INSIDE SET I TO I + 1;
+        }
+    }
+
+    IF K < 0 THEN {
+        INSIDE SET I TO 0;
+        WHILE I < -K {
+            INSIDE SET SUM TO SUM / E;
+            INSIDE SET I TO I + 1;
+        }
+    }
+
+    RETURN SUM;
+}
+
+FUNCTION LOG(X) {
+    IF X <= 0 THEN {
+        RETURN NOTHING;
+    }
+
+    # scales x into 0.5-2 range
+    INSIDE SET Y TO X;
+    INSIDE SET ACC TO 0;
+
+    WHILE Y > 2 {
+        INSIDE SET Y TO Y / E;
+        INSIDE SET ACC TO ACC + 1;
+    }
+
+    WHILE Y < 0.5 {
+        INSIDE SET Y TO Y * E;
+        INSIDE SET ACC TO ACC - 1;
+    }
+
+    # ln(y) = 2 * (z + z^3/3 + z^5/5 + ...), z=(y-1)/(y+1)
+    # its some stupid bullshit but yknow its good enough
+    INSIDE SET Z TO (Y - 1) / (Y + 1);
+    INSIDE SET Z2 TO Z * Z;
+    INSIDE SET TERM TO Z;
+    INSIDE SET SUM TO TERM;
+
+    INSIDE SET N TO 3;
+    WHILE N <= 39 {
+        INSIDE SET TERM TO TERM * Z2;
+        INSIDE SET SUM TO SUM + (TERM / N);
+        INSIDE SET N TO N + 2;
+    }
+
+    RETURN (2 * SUM) + ACC;
+}
+
+FUNCTION LOG10(X) {
+    INSIDE SET L TO MATH::LOG(X);
+    IF L::IS(NOTHING) THEN {
+        RETURN NOTHING;
+    }
+
+    RETURN L / LN10;
+}
+
+FUNCTION FLOOR(X) {
+    INSIDE SET F TO X // 1;
+
+    IF X == F THEN {
+        RETURN X;
+    }
+
+    RETURN F;
+}
+
+FUNCTION CEIL(X) {
+    INSIDE SET F TO X // 1;
+
+    IF X == F THEN {
+        RETURN X;
+    }
+
+    RETURN F + 1;
+}
+
+FUNCTION ROUND(X) {
+    IF X >= 0 THEN {
+        RETURN MATH::FLOOR(X + 0.5);
+    }
+
+    RETURN MATH::CEIL(X - 0.5);
+}
+
+FUNCTION SIGN(X) {
+    IF X > 0 THEN {
+        RETURN 1;
+    }
+
+    IF X < 0 THEN {
+        RETURN -1;
+    }
+
+    RETURN 0;
+}

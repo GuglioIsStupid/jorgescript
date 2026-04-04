@@ -1,0 +1,3 @@
+NAMESPACE STRING;
+
+# string functions are implemented natively in c++

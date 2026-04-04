@@ -7,7 +7,7 @@
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: jorgescript <file.jgs>\n";
+        std::cerr << "Usage: jorgescript <file.jorge>\n";
         return 1;
     }
 

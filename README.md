@@ -26,6 +26,8 @@ But here you can find some simple documentation for simple things.
 
 The syntax is quite a mess to explain, but here is a written example of the syntax with explanations on what does what.
 
+NOTE: EVERYTHING NEEDS TO BE CAPITALIZED EXCEPT FOR STRINGS AND NATIVE LIBRARY NAMES. (And Untrue...)
+
 ```
 LOADCLIB "SDL3" AS SDL;
 CLIBRETURNTYPE SDL::SDL_CreateWindow AS "SDL_Window";

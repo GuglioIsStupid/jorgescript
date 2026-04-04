@@ -28,8 +28,8 @@ add_executable(jorgescript
     src/frontend/Parser.cpp
     src/runtime/ValueUtils.cpp
     src/runtime/ClibRuntime.cpp
-    src/runtime/StringFunctions.cpp
-    src/runtime/TestsFunctions.cpp
+    src/runtime/modules/StringFunctions.cpp
+    src/runtime/modules/TestsFunctions.cpp
     src/ast/ASTExpressions.cpp
     src/runtime/ASTStatements.cpp
     "${RESOURCES_HEADER}"

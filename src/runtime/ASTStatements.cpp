@@ -4,7 +4,7 @@
 #include "Parser.hpp"
 #include "Resources.hpp"
 #include "Runtime.hpp"
-#include "TestsFunctions.hpp"
+#include "modules/TestsFunctions.hpp"
 #include "ValueUtils.hpp"
 #include <cmath>
 #include <cctype>

@@ -153,8 +153,6 @@ The following STD modules are available:
 
 #### STD.IO
 
-##### not currently in source, still in the works.
-
 - IO::GET_CURRENT_PATH
 - IO::INPUT, IO::PROMPT, IO::READ_LINE
 - IO::READ_FILE

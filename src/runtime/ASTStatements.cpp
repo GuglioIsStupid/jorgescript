@@ -244,20 +244,32 @@ void SummonStatement::execute() {
     auto program = parser.parseProgram();
 
     ScopeStack.push_back({});
+
+    bool namespacePushed = false;
     if (!declaredNamespace.empty()) {
         NamespaceStack.push_back(declaredNamespace);
+        namespacePushed = true;
     }
 
-    for (auto& stmt : program)
-        stmt->execute();
+    try {
+        for (auto& stmt : program)
+            stmt->execute();
 
-    if (!declaredNamespace.empty()) {
-        FileScopes[declaredNamespace] = ScopeStack.back();
-        NamespaceStack.pop_back();
-    }
+        if (!declaredNamespace.empty()) {
+            FileScopes[declaredNamespace] = ScopeStack.back();
+            NamespaceStack.pop_back();
+            namespacePushed = false;
+        }
 
-    if (!alias.empty()) {
-        FileScopes[alias] = ScopeStack.back();
+        if (!alias.empty()) {
+            FileScopes[alias] = ScopeStack.back();
+        }
+    } catch (...) {
+        if (namespacePushed) {
+            NamespaceStack.pop_back();
+        }
+        ScopeStack.pop_back();
+        throw;
     }
 
     ScopeStack.pop_back();

@@ -1,6 +1,7 @@
 #include "Lexer.hpp"
 #include "Parser.hpp"
 #include "Runtime.hpp"
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -28,9 +29,21 @@ int main(int argc, char** argv) {
 
         std::cout << "Running JorgeScript\n";
         ScopeStack.clear();
+        MainScriptPath.clear();
         pushScope();
+
+        std::error_code absolutePathError;
+        const std::filesystem::path mainScriptPath = std::filesystem::absolute(std::filesystem::path(argv[1]), absolutePathError);
+        if (absolutePathError) {
+            pushCurrentScriptPath(argv[1]);
+        } else {
+            pushCurrentScriptPath(mainScriptPath.string());
+        }
+
         for (auto& stmt : program)
             stmt->execute();
+
+        popCurrentScriptPath();
 
     } catch (const std::exception& e) {
         std::cerr << "JorgeScript Error: " << e.what() << '\n';

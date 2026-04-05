@@ -28,6 +28,7 @@ add_executable(jorgescript
     src/frontend/Parser.cpp
     src/runtime/ValueUtils.cpp
     src/runtime/ClibRuntime.cpp
+    src/runtime/modules/IOFunctions.cpp
     src/runtime/modules/StringFunctions.cpp
     src/runtime/modules/TestsFunctions.cpp
     src/ast/ASTExpressions.cpp

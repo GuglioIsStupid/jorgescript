@@ -1,0 +1,3 @@
+NAMESPACE IO;
+
+# IO module is implemented in c++

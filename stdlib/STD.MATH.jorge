@@ -1,6 +1,6 @@
 NAMESPACE MATH;
 
-# maybe implement this into c++ for some performance if i really care enough
+# TODO -- maybe implement this into c++ for some performance if i really care enough
 
 ALWAYS SET PI TO 3.141592653589793;
 ALWAYS SET TWO_PI TO 6.283185307179586;

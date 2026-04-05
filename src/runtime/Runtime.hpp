@@ -62,6 +62,7 @@ inline std::unordered_map<std::string, ClibHandle> LoadedCLIBs;
 inline std::unordered_map<std::string, std::string> ClibReturnTypes;
 inline std::unordered_map<std::string, std::shared_ptr<FunctionDefinition>> UserFunctions;
 inline std::vector<std::string> NamespaceStack;
+inline std::string MainScriptPath;
 
 inline std::string getClibSymbolKey(const std::string& alias, const std::string& function) {
     return alias + "::" + function;
@@ -75,6 +76,18 @@ inline std::string getQualifiedFunctionName(const std::string& namespaceName, co
 }
 
 Value invokeNamespaceFunction(const std::string& namespaceName, const std::string& function, const std::vector<std::unique_ptr<Expr>>& args);
+
+inline std::string getCurrentScriptPath() {
+    return MainScriptPath;
+}
+
+inline void pushCurrentScriptPath(std::string path) {
+    MainScriptPath = std::move(path);
+}
+
+inline void popCurrentScriptPath() {
+    MainScriptPath.clear();
+}
 
 inline void pushScope() { ScopeStack.emplace_back(); }
 inline void popScope() { ScopeStack.pop_back(); }

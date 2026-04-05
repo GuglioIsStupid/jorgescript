@@ -1,4 +1,6 @@
 #include "TestsFunctions.hpp"
+#include "IOFunctions.hpp"
+#include "StringFunctions.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -44,6 +46,15 @@ bool tryInvokeNativeNamespaceFunction(
     const std::string& function,
     const std::vector<std::unique_ptr<Expr>>& args,
     Value& result) {
+    if (namespaceName == "STRING") {
+        result = invokeStringFunction(function, args);
+        return true;
+    }
+
+    if (namespaceName == "IO") {
+        return tryInvokeIoNamespaceFunction(function, args, result);
+    }
+
     if (namespaceName != "TESTS") {
         return false;
     }

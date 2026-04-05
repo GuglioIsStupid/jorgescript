@@ -3,6 +3,71 @@
 #include <memory>
 
 namespace {
+std::string tokenTypeName(TokenType type) {
+    switch (type) {
+        case TokenType::IF: return "IF";
+        case TokenType::THEN: return "THEN";
+        case TokenType::OR: return "OR";
+        case TokenType::IS: return "IS";
+        case TokenType::ISNOT: return "ISNOT";
+        case TokenType::FUNCTION_TOKEN: return "FUNCTION";
+        case TokenType::RETURN_TOKEN: return "RETURN";
+        case TokenType::SET: return "SET";
+        case TokenType::TO: return "TO";
+        case TokenType::ALWAYS: return "ALWAYS";
+        case TokenType::PLUS: return "+";
+        case TokenType::MINUS: return "-";
+        case TokenType::ASTERISK: return "*";
+        case TokenType::SLASH: return "/";
+        case TokenType::FLOORDIV: return "//";
+        case TokenType::PERCENT: return "%";
+        case TokenType::PRINT: return "PRINT";
+        case TokenType::AS: return "AS";
+        case TokenType::COMMA: return ",";
+        case TokenType::LOADCLIB_TOKEN: return "LOADCLIB";
+        case TokenType::CALLCLIB_TOKEN: return "CALLCLIB";
+        case TokenType::CLIBRETURNTYPE_TOKEN: return "CLIBRETURNTYPE";
+        case TokenType::AMPERSAND: return "&";
+        case TokenType::TRUE: return "TRUE!";
+        case TokenType::FALSE: return "Untrue...";
+        case TokenType::NOTHING: return "NOTHING";
+        case TokenType::POTENTIONABLY: return "POTENTIONABLY";
+        case TokenType::NUMBER: return "NUMBER";
+        case TokenType::STRING: return "STRING";
+        case TokenType::IDENT: return "IDENT";
+        case TokenType::COLONCOLON: return "::";
+        case TokenType::EQUAL: return "=";
+        case TokenType::EQEQ: return "==";
+        case TokenType::NOTEQUAL: return "!=";
+        case TokenType::GREATER: return ">";
+        case TokenType::LESS: return "<";
+        case TokenType::GREATEREQ: return ">=";
+        case TokenType::LESSEQ: return "<=";
+        case TokenType::LBRACKET: return "[";
+        case TokenType::RBRACKET: return "]";
+        case TokenType::LPAREN: return "(";
+        case TokenType::RPAREN: return ")";
+        case TokenType::LBRACE: return "{";
+        case TokenType::RBRACE: return "}";
+        case TokenType::SEMICOLON: return ";";
+        case TokenType::FOR: return "FOR";
+        case TokenType::STEP: return "STEP";
+        case TokenType::WHILE: return "WHILE";
+        case TokenType::INSIDE: return "INSIDE";
+        case TokenType::SUMMON: return "SUMMON";
+        case TokenType::END: return "END";
+    }
+    return "UNKNOWN";
+}
+
+std::string describeToken(const Token& token) {
+    std::string result = tokenTypeName(token.type);
+    if (!token.value.empty()) {
+        result += " ('" + token.value + "')";
+    }
+    return result;
+}
+
 std::string joinNamespace(const std::vector<std::string>& segments, size_t endExclusive) {
     std::string result;
     for (size_t i = 0; i < endExclusive; ++i) {
@@ -22,8 +87,10 @@ void Parser::advance() {
 }
 
 void Parser::expect(TokenType type) {
-    if (current.type != type)
-        throw std::runtime_error("Unexpected token");
+    if (current.type != type) {
+        throw std::runtime_error(
+            "Parse error: expected " + tokenTypeName(type) + ", got " + describeToken(current));
+    }
     advance();
 }
 
@@ -74,7 +141,7 @@ std::unique_ptr<Statement> Parser::parseStatement() {
     if (current.type == TokenType::IDENT)
         return parseExprStatement();
 
-    throw std::runtime_error("Unknown statement");
+    throw std::runtime_error("Parse error: unknown statement starting at " + describeToken(current));
 }
 
 std::unique_ptr<Statement> Parser::parseExprStatement() {
@@ -304,13 +371,13 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
             while (current.type == TokenType::COLONCOLON) {
                 advance();
                 if(current.type != TokenType::IDENT && current.type != TokenType::IS)
-                    throw std::runtime_error("Expected identifier after ::");
+                    throw std::runtime_error("Parse error: expected identifier after ::, got " + describeToken(current));
                 segments.push_back(current.value);
                 advance();
             }
 
             if (segments.size() < 2)
-                throw std::runtime_error("Expected function name after namespace");
+                throw std::runtime_error("Parse error: expected function name after namespace qualifier");
 
             expect(TokenType::LPAREN);
 
@@ -333,7 +400,7 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     else if(current.type == TokenType::AMPERSAND) {
         advance();
         if(current.type != TokenType::IDENT)
-            throw std::runtime_error("Expected identifier after &");
+            throw std::runtime_error("Parse error: expected identifier after &, got " + describeToken(current));
         auto var = std::make_unique<VariableExpr>();
         var->name = current.value;
         left = std::move(var);
@@ -354,14 +421,14 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
     else if (current.type == TokenType::ASTERISK) {
         advance();
         if(current.type != TokenType::IDENT)
-            throw std::runtime_error("Expected identifier after *");
+            throw std::runtime_error("Parse error: expected identifier after *, got " + describeToken(current));
         auto var = std::make_unique<VariableExpr>();
         var->name = current.value;
         left = std::move(var);
         advance();
     }
     else {
-        throw std::runtime_error("Unexpected token in expression");
+        throw std::runtime_error("Parse error: unexpected token in expression: " + describeToken(current));
     }
 
     return parsePostfix(std::move(left));
@@ -485,7 +552,7 @@ std::unique_ptr<Statement> Parser::parseClibReturnType() {
 
     std::string returnType = current.value;
     if (current.type != TokenType::IDENT && current.type != TokenType::STRING)
-        throw std::runtime_error("Expected type name after AS");
+        throw std::runtime_error("Parse error: expected type name after AS, got " + describeToken(current));
     advance();
 
     expect(TokenType::SEMICOLON);

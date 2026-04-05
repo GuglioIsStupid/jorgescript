@@ -1,7 +1,41 @@
 #include "Lexer.hpp"
 #include <cctype>
+#include <sstream>
 #include <stdexcept>
-#include <iostream>
+
+namespace {
+std::string formatChar(char c) {
+    switch (c) {
+        case '\n': return "'\\n'";
+        case '\r': return "'\\r'";
+        case '\t': return "'\\t'";
+        case '\0': return "'\\0'";
+        default: return std::string("'") + c + "'";
+    }
+}
+
+std::string formatLocation(const std::string& source, size_t absolutePos) {
+    size_t line = 1;
+    size_t column = 1;
+
+    for (size_t i = 0; i < absolutePos && i < source.size(); ++i) {
+        if (source[i] == '\n') {
+            ++line;
+            column = 1;
+        } else {
+            ++column;
+        }
+    }
+
+    std::ostringstream out;
+    out << "line " << line << ", column " << column;
+    return out.str();
+}
+
+[[noreturn]] void throwLexerError(const std::string& source, size_t absolutePos, const std::string& message) {
+    throw std::runtime_error("Lexer error at " + formatLocation(source, absolutePos) + ": " + message);
+}
+}
 
 Lexer::Lexer(const std::string& src) : src(src) {}
 
@@ -75,7 +109,7 @@ Token Lexer::next() {
         case '&': return {TokenType::AMPERSAND, "&"};
     }
 
-    throw std::runtime_error("Unknown character");
+    throwLexerError(src, pos - 1, "unknown character " + formatChar(c));
 }
 
 char Lexer::peek() const {
@@ -111,16 +145,14 @@ Token Lexer::identifier() {
         pos++;
     }
 
-    std::cout << "Identifier found: " << word << (bang ? "!" : "") << "\n";
-
     if (word == "TRUE") {
         if (!bang)
-            throw std::runtime_error("TRUE must be TRUE!");
+            throwLexerError(src, start, "TRUE must be written as TRUE!");
         return {TokenType::TRUE, "TRUE!"};
     }
     if (word == "Untrue...") {
         if (bang)
-            throw std::runtime_error("Unexpected !");
+            throwLexerError(src, start, "unexpected '!' after Untrue...");
         return {TokenType::FALSE, "Untrue..."};
     }
     if (word == "NOTHING") {
@@ -133,7 +165,7 @@ Token Lexer::identifier() {
     if (!allowLowercase)
         for (char ch : word)
             if (std::islower((unsigned char)ch))
-                throw std::runtime_error("Lowercase not allowed");
+                throwLexerError(src, start, "lowercase is not allowed here: '" + word + "'");
 
     allowLowercase = false;
 
@@ -159,7 +191,7 @@ Token Lexer::identifier() {
     if (word == "WHILE") return {TokenType::WHILE, word};
 
     if (bang)
-        throw std::runtime_error("Unexpected !");
+        throwLexerError(src, start, "unexpected '!' after identifier '" + word + "'");
     return {TokenType::IDENT, word};
 }
 
@@ -179,6 +211,11 @@ Token Lexer::string() {
     size_t start = pos;
     while (pos < src.size() && src[pos] != '"')
         pos++;
+
+    if (pos >= src.size()) {
+        throwLexerError(src, start - 1, "unterminated string literal");
+    }
+
     std::string value = src.substr(start, pos - start);
     pos++;
     return {TokenType::STRING, value};

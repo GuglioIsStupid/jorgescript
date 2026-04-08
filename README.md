@@ -2,7 +2,7 @@
 
 ## What is this?
 
-A **JOKE** LANGUAGE MADE BASED OFF MY FRIENDS DISCORD MESSAGE
+An interpreted **JOKE** LANGUAGE MADE BASED OFF MY FRIENDS DISCORD MESSAGE
 
 <img src="./.github/theorigin.png">
 

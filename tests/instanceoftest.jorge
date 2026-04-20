@@ -1,0 +1,23 @@
+SUMMON "STD.TESTS";
+
+CLASS ANIMAL {
+    FUNCTION NEW(NAME) {
+        SET THIS["name"] TO NAME;
+    }
+}
+
+CLASS DOG INHERITS ANIMAL {
+}
+
+CLASS CAT INHERITS ANIMAL {
+}
+
+SET D TO NEW DOG("BARKER");
+SET C TO NEW CAT("WHISKERS");
+
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, DOG), TRUE!, "dog is dog via class type");
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, ANIMAL), TRUE!, "dog is animal via inheritance");
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, CAT), Untrue..., "dog is not cat");
+
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, C), Untrue..., "instance accepted as class target");
+PRINT TESTS::ASSERT_EQ(CAT::ISINSTANCEOF(C, ANIMAL), TRUE!, "alias name works");

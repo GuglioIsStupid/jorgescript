@@ -1,0 +1,14 @@
+SUMMON "STD.TESTS";
+
+FUNCTION MOVE(P, DX, DY) {
+    SET P["X"] TO P["X"] + DX;
+    SET P["Y"] TO P["Y"] + DY;
+    RETURN P;
+}
+
+SET PLAYER TO STRUCT { X: 10, Y: 20, NAME: "JORGE" };
+SET MOVED TO MOVE(PLAYER, 3, -2);
+
+PRINT TESTS::ASSERT_EQ(MOVED["X"], 13, "struct x moved");
+PRINT TESTS::ASSERT_EQ(MOVED["Y"], 18, "struct y moved");
+PRINT TESTS::ASSERT_EQ(MOVED["NAME"], "JORGE", "struct string field");

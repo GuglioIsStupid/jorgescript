@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 #include <iostream>
@@ -10,7 +11,7 @@ struct Expr;
 struct Statement;
 struct ArrayObject;
 
-enum class ValueType { NOTHING, NUMBER, STRING, BOOLEAN, POTENTIAL_BOOLEAN, ARRAY, POINTER, IDK };
+enum class ValueType { NOTHING, NUMBER, STRING, BOOLEAN, POTENTIAL_BOOLEAN, ARRAY, POINTER, CLASS, IDK };
 
 struct Value {
     ValueType type = ValueType::NOTHING;
@@ -68,6 +69,11 @@ struct ArrayLiteralExpr : Expr {
     Value evaluate() override;
 };
 
+struct StructLiteralExpr : Expr {
+    std::vector<std::pair<std::string, std::unique_ptr<Expr>>> fields;
+    Value evaluate() override;
+};
+
 struct IndexExpr : Expr {
     std::unique_ptr<Expr> target;
     std::unique_ptr<Expr> index;
@@ -103,9 +109,14 @@ struct ExprStatement : Statement {
     void execute() override;
 };
 
-struct IfStatement : Statement {
+struct IfBranch {
     std::unique_ptr<Expr> condition;
     std::vector<std::unique_ptr<Statement>> body;
+};
+
+struct IfStatement : Statement {
+    std::vector<IfBranch> branches;
+    std::vector<std::unique_ptr<Statement>> elseBody;
     void execute() override;
 };
 
@@ -152,6 +163,21 @@ struct ForStatement : Statement {
 
 struct FunctionDeclStatement : Statement {
     std::string name;
+    std::vector<std::string> params;
+    std::vector<std::unique_ptr<Statement>> body;
+    void execute() override;
+};
+
+struct ClassDeclStatement : Statement {
+    std::string name;
+    std::string baseClass;
+    std::vector<std::string> implementedInterfaces;
+    std::vector<std::unique_ptr<Statement>> body;
+    void execute() override;
+};
+
+struct OperatorDeclStatement : Statement {
+    std::string opSymbol;
     std::vector<std::string> params;
     std::vector<std::unique_ptr<Statement>> body;
     void execute() override;

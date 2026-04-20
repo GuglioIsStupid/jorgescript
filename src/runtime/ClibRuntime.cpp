@@ -1,5 +1,6 @@
 #include "ClibRuntime.hpp"
 #include "ValueUtils.hpp"
+#include <array>
 #include <stdexcept>
 #include <cstdint>
 #include <string>

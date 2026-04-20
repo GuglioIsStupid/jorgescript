@@ -36,6 +36,8 @@ private:
     std::unique_ptr<Statement> parseWhile();
     std::unique_ptr<Statement> parseFor();
     std::unique_ptr<Statement> parseFunctionDecl();
+    std::unique_ptr<Statement> parseClassDecl();
+    std::unique_ptr<Statement> parseOperatorDecl();
     std::unique_ptr<Statement> parseReturn();
 
 };

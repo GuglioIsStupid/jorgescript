@@ -1,0 +1,115 @@
+{
+  "name": "JorgeScript",
+  "scopeName": "source.jorgescript",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#booleans_and_null" },
+    { "include": "#keywords" },
+    { "include": "#namespace_calls" },
+    { "include": "#operators" },
+    { "include": "#numbers" },
+    { "include": "#constants" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.jorgescript",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.jorgescript",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.jorgescript",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "booleans_and_null": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.jorgescript",
+          "match": "\\b(?:TRUE!|Untrue\\.\\.\\.|POTENTIONABLY)\\b"
+        },
+        {
+          "name": "constant.language.null.jorgescript",
+          "match": "\\bNOTHING\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.jorgescript",
+          "match": "\\b(?:IF|THEN|ELSE|FOR|WHILE|STEP|RETURN|FUNCTION|CLASS|OPERATOR|INHERITS|IMPLEMENTS|INSIDE)\\b"
+        },
+        {
+          "name": "keyword.other.jorgescript",
+          "match": "\\b(?:SET|TO|ALWAYS|PRINT|AS|SUMMON|LOADCLIB|LOADDLL|CALLCLIB|CALL|CLIBRETURNTYPE|RETURNTYPE|STRUCT)\\b"
+        }
+      ]
+    },
+    "namespace_calls": {
+      "patterns": [
+        {
+          "name": "entity.name.namespace.jorgescript",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b(?=::)"
+        },
+        {
+          "name": "punctuation.accessor.double-colon.jorgescript",
+          "match": "::"
+        },
+        {
+          "name": "entity.name.function.jorgescript",
+          "match": "(?<=::)(?:[A-Za-z_][A-Za-z0-9_]*|IS|ISNOT|IS_INSTANCE_OF|ISINSTANCEOF)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.jorgescript",
+          "match": "==|!=|>=|<=|>|<"
+        },
+        {
+          "name": "keyword.operator.arithmetic.jorgescript",
+          "match": "\\+|-|\\*|//|/|%"
+        },
+        {
+          "name": "keyword.operator.assignment.jorgescript",
+          "match": "="
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.jorgescript",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.jorgescript",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.other.jorgescript",
+          "match": "\\bSDL_[A-Z0-9_]+\\b"
+        }
+      ]
+    }
+  }
+}

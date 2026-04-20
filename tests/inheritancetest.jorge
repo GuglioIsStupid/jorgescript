@@ -1,0 +1,36 @@
+SUMMON "STD.TESTS";
+
+CLASS TALKABLE {
+    FUNCTION SPEAK(SELF) {
+        RETURN "...";
+    }
+}
+
+CLASS ANIMAL {
+    FUNCTION NEW(NAME) {
+        SET THIS["name"] TO NAME;
+    }
+
+    FUNCTION LABEL(SELF) {
+        RETURN "ANIMAL:" + SELF["name"];
+    }
+}
+
+CLASS DOG INHERITS ANIMAL IMPLEMENTS TALKABLE {
+    FUNCTION SPEAK(SELF) {
+        RETURN "WOOF " + SELF["name"];
+    }
+}
+
+CLASS CAT INHERITS ANIMAL {
+}
+
+SET D TO NEW DOG("JORGE");
+SET C TO NEW CAT("WHISKERS");
+PRINT TESTS::ASSERT_EQ(DOG::LABEL(D), "ANIMAL:JORGE", "inherited method");
+PRINT TESTS::ASSERT_EQ(DOG::SPEAK(D), "WOOF JORGE", "implemented method");
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, DOG), TRUE!, "dog is dog via class type");
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, ANIMAL), TRUE!, "dog is animal via inheritance");
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, CAT), Untrue..., "dog is not cat");
+PRINT TESTS::ASSERT_EQ(DOG::IS_INSTANCE_OF(D, C), Untrue..., "instance accepted as class target");
+PRINT TESTS::ASSERT_EQ(CAT::ISINSTANCEOF(C, ANIMAL), TRUE!, "alias name works");

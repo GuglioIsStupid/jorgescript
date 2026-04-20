@@ -7,11 +7,17 @@ std::string tokenTypeName(TokenType type) {
     switch (type) {
         case TokenType::IF: return "IF";
         case TokenType::THEN: return "THEN";
+        case TokenType::ELSE: return "ELSE";
         case TokenType::OR: return "OR";
         case TokenType::IS: return "IS";
         case TokenType::ISNOT: return "ISNOT";
         case TokenType::FUNCTION_TOKEN: return "FUNCTION";
         case TokenType::RETURN_TOKEN: return "RETURN";
+        case TokenType::CLASS_TOKEN: return "CLASS";
+        case TokenType::OPERATOR_TOKEN: return "OPERATOR";
+        case TokenType::INHERITS_TOKEN: return "INHERITS";
+        case TokenType::IMPLEMENTS_TOKEN: return "IMPLEMENTS";
+        case TokenType::STRUCT_TOKEN: return "STRUCT";
         case TokenType::SET: return "SET";
         case TokenType::TO: return "TO";
         case TokenType::ALWAYS: return "ALWAYS";
@@ -36,6 +42,7 @@ std::string tokenTypeName(TokenType type) {
         case TokenType::STRING: return "STRING";
         case TokenType::IDENT: return "IDENT";
         case TokenType::COLONCOLON: return "::";
+        case TokenType::COLON: return ":";
         case TokenType::EQUAL: return "=";
         case TokenType::EQEQ: return "==";
         case TokenType::NOTEQUAL: return "!=";
@@ -102,6 +109,9 @@ std::vector<std::unique_ptr<Statement>> Parser::parseProgram() {
 }
 
 std::unique_ptr<Statement> Parser::parseStatement() {
+    if(current.type == TokenType::CLASS_TOKEN)
+        return parseClassDecl();
+
     if(current.type == TokenType::FUNCTION_TOKEN)
         return parseFunctionDecl();
 
@@ -152,76 +162,51 @@ std::unique_ptr<Statement> Parser::parseExprStatement() {
 }
 
 std::unique_ptr<Statement> Parser::parseIf() {
+    auto parseCondition = [this]() -> std::unique_ptr<Expr> {
+        if (current.type == TokenType::LPAREN) {
+            advance();
+            auto condition = parseExpr();
+            expect(TokenType::RPAREN);
+            return condition;
+        }
+
+        return parseExpr();
+    };
+
+    auto parseBlock = [this](std::vector<std::unique_ptr<Statement>>& body) {
+        expect(TokenType::LBRACE);
+        while(current.type != TokenType::RBRACE)
+            body.push_back(parseStatement());
+        expect(TokenType::RBRACE);
+    };
+
     expect(TokenType::IF);
 
-    std::unique_ptr<Expr> conditionExpr;
-
-    if (current.type == TokenType::LPAREN) {
-        advance();
-        conditionExpr = parseExpr();
-        expect(TokenType::RPAREN);
-    } else if (current.type == TokenType::IDENT) {
-        std::string ident = current.value;
-        advance();
-
-        if (current.type == TokenType::COLONCOLON) {
-            advance();
-            expect(TokenType::IS);
-            expect(TokenType::LPAREN);
-
-            auto condExpr = parseExpr();
-
-            expect(TokenType::RPAREN);
-
-            auto varExpr = std::make_unique<VariableExpr>();
-            varExpr->name = ident;
-
-            auto bin = std::make_unique<BinaryExpr>();
-            bin->left = std::move(varExpr);
-            bin->right = std::move(condExpr);
-            bin->op = "==";
-            conditionExpr = std::move(bin);
-        } else {
-            std::unique_ptr<Expr> left = std::make_unique<VariableExpr>();
-            static_cast<VariableExpr*>(left.get())->name = ident;
-
-            while (current.type == TokenType::EQEQ || current.type == TokenType::NOTEQUAL ||
-                   current.type == TokenType::GREATER || current.type == TokenType::LESS ||
-                   current.type == TokenType::GREATEREQ || current.type == TokenType::LESSEQ) {
-                std::string op;
-                if (current.type == TokenType::EQEQ) op = "==";
-                else if (current.type == TokenType::NOTEQUAL) op = "!=";
-                else if (current.type == TokenType::GREATER) op = ">";
-                else if (current.type == TokenType::LESS) op = "<";
-                else if (current.type == TokenType::GREATEREQ) op = ">=";
-                else if (current.type == TokenType::LESSEQ) op = "<=";
-
-                advance();
-                auto right = parseAddSubtract();
-
-                auto bin = std::make_unique<BinaryExpr>();
-                bin->left = std::move(left);
-                bin->right = std::move(right);
-                bin->op = op;
-                left = std::move(bin);
-            }
-
-            conditionExpr = std::move(left);
-        }
-    } else {
-        conditionExpr = parseExpr();
-    }
-
-    expect(TokenType::THEN);
-    expect(TokenType::LBRACE);
-
     auto stmt = std::make_unique<IfStatement>();
-    stmt->condition = std::move(conditionExpr);
 
-    while(current.type != TokenType::RBRACE)
-        stmt->body.push_back(parseStatement());
+    IfBranch firstBranch;
+    firstBranch.condition = parseCondition();
+    expect(TokenType::THEN);
+    parseBlock(firstBranch.body);
+    stmt->branches.push_back(std::move(firstBranch));
 
-    expect(TokenType::RBRACE);
+    while (current.type == TokenType::ELSE) {
+        advance();
+
+        if (current.type == TokenType::IF) {
+            advance();
+
+            IfBranch elseIfBranch;
+            elseIfBranch.condition = parseCondition();
+            expect(TokenType::THEN);
+            parseBlock(elseIfBranch.body);
+            stmt->branches.push_back(std::move(elseIfBranch));
+            continue;
+        }
+
+        parseBlock(stmt->elseBody);
+        break;
+    }
 
     if(current.type == TokenType::SEMICOLON) advance();
 
@@ -357,6 +342,29 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         expect(TokenType::RBRACKET);
         left = std::move(arr);
     }
+    else if (current.type == TokenType::STRUCT_TOKEN) {
+        advance();
+        expect(TokenType::LBRACE);
+
+        auto obj = std::make_unique<StructLiteralExpr>();
+
+        if (current.type != TokenType::RBRACE) {
+            while (true) {
+                std::string fieldName = current.value;
+                expect(TokenType::IDENT);
+                expect(TokenType::COLON);
+                obj->fields.push_back({fieldName, parseExpr()});
+
+                if (current.type != TokenType::COMMA) {
+                    break;
+                }
+                advance();
+            }
+        }
+
+        expect(TokenType::RBRACE);
+        left = std::move(obj);
+    }
     else if(current.type == TokenType::IDENT) {
         const std::string firstIdent = current.value;
         auto var = std::make_unique<VariableExpr>();
@@ -364,13 +372,56 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
         left = std::move(var);
         advance();
 
+        if (firstIdent == "NEW" && current.type == TokenType::IDENT) {
+            std::string className = current.value;
+            advance();
+
+            expect(TokenType::LPAREN);
+
+            auto callExpr = std::make_unique<CallExpr>();
+            callExpr->namespaceName = className;
+            callExpr->function = "NEW";
+
+            if(current.type != TokenType::RPAREN) {
+                callExpr->args.push_back(parseExpr());
+                while(current.type == TokenType::COMMA) {
+                    advance();
+                    callExpr->args.push_back(parseExpr());
+                }
+            }
+
+            expect(TokenType::RPAREN);
+            left = std::move(callExpr);
+            return parsePostfix(std::move(left));
+        }
+
+        if (current.type == TokenType::LPAREN) {
+            advance();
+
+            auto callExpr = std::make_unique<CallExpr>();
+            callExpr->namespaceName = "";
+            callExpr->function = firstIdent;
+
+            if (current.type != TokenType::RPAREN) {
+                callExpr->args.push_back(parseExpr());
+                while (current.type == TokenType::COMMA) {
+                    advance();
+                    callExpr->args.push_back(parseExpr());
+                }
+            }
+
+            expect(TokenType::RPAREN);
+            left = std::move(callExpr);
+            return parsePostfix(std::move(left));
+        }
+
         if(current.type == TokenType::COLONCOLON) {
             std::vector<std::string> segments;
             segments.push_back(firstIdent);
 
             while (current.type == TokenType::COLONCOLON) {
                 advance();
-                if(current.type != TokenType::IDENT && current.type != TokenType::IS)
+                if(current.type != TokenType::IDENT && current.type != TokenType::IS && current.type != TokenType::ISNOT)
                     throw std::runtime_error("Parse error: expected identifier after ::, got " + describeToken(current));
                 segments.push_back(current.value);
                 advance();
@@ -394,7 +445,21 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
             }
 
             expect(TokenType::RPAREN);
-            left = std::move(callExpr);
+
+            // Keep compatibility with the historical X::IS(...) / X::ISNOT(...) condition syntax.
+            if ((callExpr->function == "IS" || callExpr->function == "ISNOT") &&
+                segments.size() == 2 && callExpr->args.size() == 1) {
+                auto varExpr = std::make_unique<VariableExpr>();
+                varExpr->name = segments.front();
+
+                auto bin = std::make_unique<BinaryExpr>();
+                bin->left = std::move(varExpr);
+                bin->right = std::move(callExpr->args[0]);
+                bin->op = (callExpr->function == "IS") ? "==" : "!=";
+                left = std::move(bin);
+            } else {
+                left = std::move(callExpr);
+            }
         }
     }
     else if(current.type == TokenType::AMPERSAND) {
@@ -716,11 +781,135 @@ std::unique_ptr<Statement> Parser::parseFunctionDecl() {
     return stmt;
 }
 
+std::unique_ptr<Statement> Parser::parseClassDecl() {
+    expect(TokenType::CLASS_TOKEN);
+
+    std::string name = current.value;
+    expect(TokenType::IDENT);
+
+    std::string baseClass;
+    std::vector<std::string> implementedInterfaces;
+
+    bool hasInheritanceClause = false;
+    bool hasImplementsClause = false;
+    while (current.type == TokenType::INHERITS_TOKEN || current.type == TokenType::IMPLEMENTS_TOKEN) {
+        if (current.type == TokenType::INHERITS_TOKEN) {
+            if (hasInheritanceClause) {
+                throw std::runtime_error("Parse error: duplicate INHERITS clause in class declaration " + name);
+            }
+
+            hasInheritanceClause = true;
+            advance();
+            baseClass = current.value;
+            expect(TokenType::IDENT);
+            continue;
+        }
+
+        if (hasImplementsClause) {
+            throw std::runtime_error("Parse error: duplicate IMPLEMENTS clause in class declaration " + name);
+        }
+
+        hasImplementsClause = true;
+        advance();
+
+        implementedInterfaces.push_back(current.value);
+        expect(TokenType::IDENT);
+        while (current.type == TokenType::COMMA) {
+            advance();
+            implementedInterfaces.push_back(current.value);
+            expect(TokenType::IDENT);
+        }
+    }
+
+    expect(TokenType::LBRACE);
+
+    auto stmt = std::make_unique<ClassDeclStatement>();
+    stmt->name = name;
+    stmt->baseClass = std::move(baseClass);
+    stmt->implementedInterfaces = std::move(implementedInterfaces);
+
+    while (current.type != TokenType::RBRACE) {
+        if (current.type == TokenType::FUNCTION_TOKEN) {
+            stmt->body.push_back(parseFunctionDecl());
+            continue;
+        }
+        if (current.type == TokenType::OPERATOR_TOKEN) {
+            stmt->body.push_back(parseOperatorDecl());
+            continue;
+        }
+
+        throw std::runtime_error(
+            "Parse error: class body only supports FUNCTION and OPERATOR declarations, got " + describeToken(current));
+    }
+
+    expect(TokenType::RBRACE);
+
+    if(current.type == TokenType::SEMICOLON) advance();
+
+    return stmt;
+}
+
+std::unique_ptr<Statement> Parser::parseOperatorDecl() {
+    expect(TokenType::OPERATOR_TOKEN);
+
+    std::string op;
+    if (current.type == TokenType::PLUS) op = "+";
+    else if (current.type == TokenType::MINUS) op = "-";
+    else if (current.type == TokenType::ASTERISK) op = "*";
+    else if (current.type == TokenType::SLASH) op = "/";
+    else if (current.type == TokenType::FLOORDIV) op = "//";
+    else if (current.type == TokenType::PERCENT) op = "%";
+    else if (current.type == TokenType::EQEQ) op = "==";
+    else if (current.type == TokenType::NOTEQUAL) op = "!=";
+    else if (current.type == TokenType::GREATER) op = ">";
+    else if (current.type == TokenType::LESS) op = "<";
+    else if (current.type == TokenType::GREATEREQ) op = ">=";
+    else if (current.type == TokenType::LESSEQ) op = "<=";
+    else throw std::runtime_error("Parse error: unsupported OPERATOR token " + describeToken(current));
+    advance();
+
+    expect(TokenType::LPAREN);
+
+    std::vector<std::string> params;
+    if (current.type != TokenType::RPAREN) {
+        params.push_back(current.value);
+        expect(TokenType::IDENT);
+
+        while (current.type == TokenType::COMMA) {
+            advance();
+            params.push_back(current.value);
+            expect(TokenType::IDENT);
+        }
+    }
+
+    expect(TokenType::RPAREN);
+    expect(TokenType::LBRACE);
+
+    auto stmt = std::make_unique<OperatorDeclStatement>();
+    stmt->opSymbol = op;
+    stmt->params = std::move(params);
+
+    while(current.type != TokenType::RBRACE)
+        stmt->body.push_back(parseStatement());
+
+    expect(TokenType::RBRACE);
+
+    if(current.type == TokenType::SEMICOLON) advance();
+
+    return stmt;
+}
+
 std::unique_ptr<Statement> Parser::parseReturn() {
     expect(TokenType::RETURN_TOKEN);
 
     auto stmt = std::make_unique<ReturnStatement>();
-    stmt->expr = parseExpr();
+    if (current.type == TokenType::SEMICOLON) {
+        auto lit = std::make_unique<LiteralExpr>();
+        lit->value = Value();
+        stmt->expr = std::move(lit);
+    } else {
+        stmt->expr = parseExpr();
+    }
 
     expect(TokenType::SEMICOLON);
     return stmt;

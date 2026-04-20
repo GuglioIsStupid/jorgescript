@@ -46,6 +46,8 @@ std::string valueToString(const Value& v) {
                 << "@0x" << std::hex << std::uppercase << v.pointer;
             return oss.str();
         }
+        case ValueType::CLASS:
+            return v.string;
         default:
             return "IDK";
     }

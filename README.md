@@ -91,6 +91,65 @@ SET MYARRAY["NAME"] TO "JORGE";
 PRINT MYARRAY["NAME"]; # prints JORGE
 ```
 
+### Structs
+
+JorgeScript supports (NOT)C-like structs using `STRUCT { ... }` with named fields.
+
+```jorge
+SET PLAYER TO STRUCT { X: 10, Y: 20, NAME: "JORGE" };
+PRINT PLAYER["X"];    # 10
+SET PLAYER["X"] TO 11;
+```
+
+Struct values can be passed to functions directly:
+
+```jorge
+FUNCTION MOVE(P, DX, DY) {
+    SET P["X"] TO P["X"] + DX;
+    SET P["Y"] TO P["Y"] + DY;
+    RETURN P;
+}
+
+SET P TO STRUCT { X: 1, Y: 2 };
+SET P2 TO MOVE(P, 3, 4);
+```
+
+### Classes
+
+JorgeScript also supports classes with methods, operator overloading, and inheritance.
+
+```jorge
+SUMMON "STD.TESTS";
+
+CLASS TALKABLE {
+    FUNCTION SPEAK(SELF) {
+        RETURN "...";
+    }
+}
+
+CLASS ANIMAL {
+    FUNCTION NEW(NAME) {
+        SET THIS["name"] TO NAME;
+    }
+
+    FUNCTION LABEL(SELF) {
+        RETURN "ANIMAL:" + SELF["name"];
+    }
+}
+
+CLASS DOG INHERITS ANIMAL IMPLEMENTS TALKABLE {
+    FUNCTION SPEAK(SELF) {
+        RETURN "WOOF " + SELF["name"];
+    }
+}
+
+CLASS CAT INHERITS ANIMAL {
+}
+
+SET D TO NEW DOG("JORGE");
+SET C TO NEW CAT("WHISKERS");
+```
+
 ### STD Lib
 
 Jorgescript has a STD Library implemented for use.

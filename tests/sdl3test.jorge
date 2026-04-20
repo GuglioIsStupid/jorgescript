@@ -1,31 +1,152 @@
 LOADCLIB "SDL3" AS SDL;
+SUMMON "STD.MATH";
 CLIBRETURNTYPE SDL::SDL_CreateWindow AS "SDL_Window";
+CLIBRETURNTYPE SDL::SDL_CreateRenderer AS "SDL_Renderer";
 CLIBRETURNTYPE SDL::SDL_HasEvent AS BOOLEAN;
+CLIBRETURNTYPE SDL::SDL_GetTicks AS NUMBER;
+CLIBRETURNTYPE SDL::SDL_HasClipboardText AS BOOLEAN;
 ALWAYS SET SDL_EVENT_QUIT TO 0x100;
+ALWAYS SET SDL_EVENT_WINDOW_RESIZED TO 0x207;
+ALWAYS SET SDL_INIT_VIDEO TO 0x00000020;
+ALWAYS SET SDL_INIT_EVENTS TO 0x00004000;
+ALWAYS SET SDL_WINDOW_RESIZABLE TO 0x00000020;
+ALWAYS SET SDL_MESSAGEBOX_INFORMATION TO 0x00000040;
 
-CALLCLIB SDL::SDL_Init(0x00000020);
+FUNCTION FRACT(X) {
+    RETURN X - MATH::FLOOR(X);
+}
+
+FUNCTION FMOD(A, B) {
+    RETURN A - (B * MATH::FLOOR(A / B));
+}
+
+FUNCTION HSV_TO_RGB(H, S, V) {
+    SET HP TO H * 6;
+    SET C TO V * S;
+    SET X TO C * (1 - MATH::ABS(FMOD(HP, 2) - 1));
+    SET M TO V - C;
+
+    SET R1 TO 0;
+    SET G1 TO 0;
+    SET B1 TO 0;
+
+    IF (HP >= 0) THEN {
+        IF (HP < 1) THEN {
+            SET R1 TO C;
+            SET G1 TO X;
+        }
+    }
+    IF (HP >= 1) THEN {
+        IF (HP < 2) THEN {
+            SET R1 TO X;
+            SET G1 TO C;
+        }
+    }
+    IF (HP >= 2) THEN {
+        IF (HP < 3) THEN {
+            SET G1 TO C;
+            SET B1 TO X;
+        }
+    }
+    IF (HP >= 3) THEN {
+        IF (HP < 4) THEN {
+            SET G1 TO X;
+            SET B1 TO C;
+        }
+    }
+    IF (HP >= 4) THEN {
+        IF (HP < 5) THEN {
+            SET R1 TO X;
+            SET B1 TO C;
+        }
+    }
+    IF (HP >= 5) THEN {
+        IF (HP < 6) THEN {
+            SET R1 TO C;
+            SET B1 TO X;
+        }
+    }
+
+    RETURN STRUCT {
+        R: (R1 + M) * 255,
+        G: (G1 + M) * 255,
+        B: (B1 + M) * 255
+    };
+}
+
+CALLCLIB SDL::SDL_Init(SDL_INIT_VIDEO + SDL_INIT_EVENTS);
 
 SET SDLWINDOW TO SDL::SDL_CreateWindow(
     "JorgeScript SDL3 Window",
     800, 600,
-    0
+    SDL_WINDOW_RESIZABLE
 );
 
 IF SDLWINDOW::IS(NOTHING) THEN {
     PRINT "Failed to create window!";
-} 
+}
+
+SET SDLRENDERER TO SDL::SDL_CreateRenderer(SDLWINDOW, NOTHING);
+
+IF SDLRENDERER::IS(NOTHING) THEN {
+    PRINT "Renderer creation failed. Running in event-only mode.";
+}
+
+CALLCLIB SDL::SDL_SetWindowPosition(SDLWINDOW, 160, 120);
+CALLCLIB SDL::SDL_SetWindowSize(SDLWINDOW, 960, 540);
+
+CALLCLIB SDL::SDL_SetClipboardText("JorgeScript SDL3 clipboard test");
+IF (SDL::SDL_HasClipboardText()) THEN {
+    PRINT "Clipboard text set successfully.";
+}
 
 SET RUNNING TO TRUE!;
+SET FRAMECOUNT TO 0;
+SET LASTTITLEUPDATE TO SDL::SDL_GetTicks();
+SET STARTTICKS TO LASTTITLEUPDATE;
 
 WHILE (RUNNING) {
     CALLCLIB SDL::SDL_PumpEvents();
 
+    IF (SDL::SDL_HasEvent(SDL_EVENT_WINDOW_RESIZED)) THEN {
+        PRINT "Window resized";
+    }
+
     SET SHOULDQUIT TO SDL::SDL_HasEvent(SDL_EVENT_QUIT);
     IF SHOULDQUIT::IS(TRUE!) THEN {
-        SET RUNNING TO Untrue...;
+        SET RUNNING TO Untrue...; # why would you ever want to quit a jorgescript program 💔
+    }
+
+    SET NOW TO SDL::SDL_GetTicks();
+    SET FRAMECOUNT TO FRAMECOUNT + 1;
+
+    IF (NOW - LASTTITLEUPDATE >= 1000) THEN {
+        SET UPTIME TO (NOW - STARTTICKS) // 1000;
+        CALLCLIB SDL::SDL_SetWindowTitle(
+            SDLWINDOW,
+            "JorgeScript SDL3 Showcase | Uptime: " + UPTIME + "s | Frames: " + FRAMECOUNT
+        );
+        SET LASTTITLEUPDATE TO NOW;
+    }
+
+    IF SDLRENDERER::ISNOT(NOTHING) THEN {
+        SET T TO NOW / 1000.0;
+        SET HUE TO FRACT(T * 0.08);
+        SET RGB TO HSV_TO_RGB(HUE, 0.45, 0.40);
+        SET R TO RGB["R"];
+        SET G TO RGB["G"];
+        SET B TO RGB["B"];
+
+        CALLCLIB SDL::SDL_SetRenderDrawColor(SDLRENDERER, R, G, B, 255);
+        CALLCLIB SDL::SDL_RenderClear(SDLRENDERER);
+        CALLCLIB SDL::SDL_RenderPresent(SDLRENDERER);
     }
 
     CALLCLIB SDL::SDL_Delay(16);
+}
+
+IF SDLRENDERER::ISNOT(NOTHING) THEN {
+    CALLCLIB SDL::SDL_DestroyRenderer(SDLRENDERER);
 }
 
 CALLCLIB SDL::SDL_DestroyWindow(SDLWINDOW);

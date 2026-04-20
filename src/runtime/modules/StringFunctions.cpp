@@ -270,5 +270,28 @@ Value invokeStringFunction(const std::string& function, const std::vector<std::u
         return makeArrayValue(array);
     }
 
+    if (normalizedFunction == "STR") {
+        if (args.size() != 1) {
+            throw std::runtime_error("STRING::STR expects 1 argument");
+        }
+        const Value value = requireValue(args, 0, normalizedFunction);
+        if (value.type != ValueType::NUMBER) {
+            throw std::runtime_error("Expected number argument for STRING::STR");
+        }
+        return makeStringValue(valueToString(value));
+    }
+
+    if (normalizedFunction == "CHAR") {
+        if (args.size() != 1) {
+            throw std::runtime_error("STRING::CHAR expects 1 argument");
+        }
+        const double charCode = requireNumber(args, 0, normalizedFunction);
+        if (std::trunc(charCode) != charCode || charCode < 0 || charCode > 127) {
+            throw std::runtime_error("STRING::CHAR expects an integer between 0 and 127");
+        }
+        char ch = static_cast<char>(static_cast<int>(charCode));
+        return makeStringValue(std::string(1, ch));
+    }
+
     throw std::runtime_error("Unknown STRING function: " + function);
 }

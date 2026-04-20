@@ -1,0 +1,28 @@
+SUMMON "STD.TESTS";
+
+CLASS VECTOR2 {
+    FUNCTION NEW(X, Y) {
+        SET THIS["x"] TO X;
+        SET THIS["y"] TO Y;
+    }
+
+    OPERATOR + (A, B) {
+        PRINT "Adding vectors: (" + THIS["x"] + ", " + THIS["y"] + ") + (" + B["x"] + ", " + B["y"] + ")";
+        RETURN NEW VECTOR2(
+            THIS["x"] + B["x"],
+            THIS["y"] + B["y"]
+        );
+    }
+
+    OPERATOR == (A, B) {
+        RETURN (THIS["x"] + ":" + THIS["y"]) == (B["x"] + ":" + B["y"]);
+    }
+}
+
+SET V1 TO NEW VECTOR2(2, 4);
+SET V2 TO NEW VECTOR2(3, 5);
+SET V3 TO V1 + V2;
+
+PRINT TESTS::ASSERT_EQ(V3["x"], 5, "vector x add");
+PRINT TESTS::ASSERT_EQ(V3["y"], 9, "vector y add");
+PRINT TESTS::ASSERT_EQ(V3 == NEW VECTOR2(5, 9), TRUE!, "vector equality overload");

@@ -1,0 +1,36 @@
+{
+  "name": "jorgescript-syntax",
+  "displayName": "JorgeScript Syntax",
+  "description": "Syntax highlighting support for JorgeScript (.jorge)",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "license": "MIT",
+  "contributes": {
+    "languages": [
+      {
+        "id": "jorgescript",
+        "aliases": [
+          "JorgeScript",
+          "jorge"
+        ],
+        "extensions": [
+          ".jorge"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jorgescript",
+        "scopeName": "source.jorgescript",
+        "path": "./syntaxes/jorgescript.tmLanguage.json"
+      }
+    ]
+  }
+}

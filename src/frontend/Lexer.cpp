@@ -90,6 +90,7 @@ Token Lexer::next() {
     pos++;
 
     switch (c) {
+        case ':': return {TokenType::COLON, ":"};
         case '=': return {TokenType::EQUAL, "="};
         case '>': return {TokenType::GREATER, ">"};
         case '<': return {TokenType::LESS, "<"};
@@ -171,11 +172,17 @@ Token Lexer::identifier() {
 
     if (word == "IF") return {TokenType::IF, word};
     if (word == "THEN") return {TokenType::THEN, word};
+    if (word == "ELSE") return {TokenType::ELSE, word};
     if (word == "OR") return {TokenType::OR, word};
     if (word == "IS") return {TokenType::IS, word};
     if (word == "ISNOT") return {TokenType::ISNOT, word};
     if (word == "FUNCTION") return {TokenType::FUNCTION_TOKEN, word};
     if (word == "RETURN") return {TokenType::RETURN_TOKEN, word};
+    if (word == "CLASS") return {TokenType::CLASS_TOKEN, word};
+    if (word == "OPERATOR") return {TokenType::OPERATOR_TOKEN, word};
+    if (word == "INHERITS") return {TokenType::INHERITS_TOKEN, word};
+    if (word == "IMPLEMENTS") return {TokenType::IMPLEMENTS_TOKEN, word};
+    if (word == "STRUCT") return {TokenType::STRUCT_TOKEN, word};
     if (word == "SET") return {TokenType::SET, word};
     if (word == "TO") return {TokenType::TO, word};
     if (word == "ALWAYS") return {TokenType::ALWAYS, word};

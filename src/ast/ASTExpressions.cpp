@@ -8,7 +8,16 @@
 
 Value VariableExpr::evaluate() {
     Variable* v = findVariable(name);
-    if (!v) throw std::runtime_error("Undefined variable: " + name);
+    if (!v) {
+        if (DefinedClasses.find(name) != DefinedClasses.end()) {
+            Value classRef;
+            classRef.type = ValueType::CLASS;
+            classRef.string = name;
+            return classRef;
+        }
+
+        throw std::runtime_error("Undefined variable: " + name);
+    }
     if (v->value.type == ValueType::POTENTIAL_BOOLEAN) {
         return Value(randomBoolean());
     }
@@ -21,6 +30,17 @@ Value ArrayLiteralExpr::evaluate() {
         arr->indexed.push_back(elem->evaluate());
     }
     return Value(arr);
+}
+
+Value StructLiteralExpr::evaluate() {
+    auto obj = std::make_shared<ArrayObject>();
+    for (auto& field : fields) {
+        obj->named[field.first] = field.second->evaluate();
+    }
+
+    Value result(obj);
+    result.customType = "STRUCT";
+    return result;
 }
 
 Value IndexExpr::evaluate() {
@@ -58,6 +78,34 @@ Value IndexExpr::evaluate() {
 Value BinaryExpr::evaluate() {
     Value l = resolvePotentialBoolean(left->evaluate());
     Value r = resolvePotentialBoolean(right->evaluate());
+
+    std::string className;
+    if (!l.customType.empty() && DefinedClasses.find(l.customType) != DefinedClasses.end()) {
+        className = l.customType;
+    }
+    if (!r.customType.empty() && DefinedClasses.find(r.customType) != DefinedClasses.end()) {
+        if (!className.empty() && className != r.customType) {
+            throw std::runtime_error("Cannot use operator " + op + " between class instances of different types: " + className + " and " + r.customType);
+        }
+        className = r.customType;
+    }
+
+    if (!className.empty() && isOperatorOverloadable(op)) {
+        const std::string overloadFunction = getOperatorOverloadFunctionName(op);
+        const std::string overloadOwner = resolveClassFunctionNamespace(className, overloadFunction);
+        if (!overloadOwner.empty()) {
+            auto leftArg = std::make_unique<LiteralExpr>();
+            leftArg->value = l;
+
+            auto rightArg = std::make_unique<LiteralExpr>();
+            rightArg->value = r;
+
+            std::vector<std::unique_ptr<Expr>> overloadArgs;
+            overloadArgs.push_back(std::move(leftArg));
+            overloadArgs.push_back(std::move(rightArg));
+            return invokeNamespaceFunction(className, overloadFunction, overloadArgs);
+        }
+    }
 
     if (op == "+") {
         if (l.type == ValueType::STRING || r.type == ValueType::STRING) {
@@ -140,6 +188,7 @@ Value BinaryExpr::evaluate() {
             case ValueType::STRING: return a.string == b.string;
             case ValueType::BOOLEAN: return a.boolean == b.boolean;
             case ValueType::POINTER: return a.pointer == b.pointer;
+            case ValueType::CLASS: return a.string == b.string;
             case ValueType::NOTHING: return true;
             default: return false;
         }
@@ -198,9 +247,5 @@ Value CallExpr::evaluate() {
         return invokeClibFunction(namespaceName, function, args);
     }
 
-    if (FileScopes.find(namespaceName) != FileScopes.end()) {
-        return invokeNamespaceFunction(namespaceName, function, args);
-    }
-
-    throw std::runtime_error("Unknown call namespace: " + namespaceName);
+    return invokeNamespaceFunction(namespaceName, function, args);
 }

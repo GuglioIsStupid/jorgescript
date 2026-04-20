@@ -19,7 +19,42 @@ struct FunctionReturnSignal {
     Value value;
 };
 
-Value invokeUserFunction(const std::string& qualifiedName, const std::vector<std::unique_ptr<Expr>>& args) {
+std::vector<std::string> getClassPublicMethodNames(const std::string& className) {
+    const std::string prefix = className + "::";
+    std::vector<std::string> methods;
+    methods.reserve(8);
+
+    for (const auto& entry : UserFunctions) {
+        const std::string& qualifiedName = entry.first;
+        if (qualifiedName.rfind(prefix, 0) != 0) {
+            continue;
+        }
+
+        const std::string method = qualifiedName.substr(prefix.size());
+        if (method == "NEW") {
+            continue;
+        }
+        if (method.rfind("OPERATOR_", 0) == 0) {
+            continue;
+        }
+
+        methods.push_back(method);
+    }
+
+    return methods;
+}
+
+enum class ThisBindingMode {
+    NONE,
+    CONSTRUCTOR_NEW,
+    FIRST_ARG_INSTANCE
+};
+
+Value invokeUserFunction(
+    const std::string& qualifiedName,
+    const std::vector<std::unique_ptr<Expr>>& args,
+    const std::string& classNameForThis = "",
+    ThisBindingMode thisBindingMode = ThisBindingMode::NONE) {
     auto fnIt = UserFunctions.find(qualifiedName);
     if (fnIt == UserFunctions.end()) {
         throw std::runtime_error("Undefined function: " + qualifiedName);
@@ -36,9 +71,27 @@ Value invokeUserFunction(const std::string& qualifiedName, const std::vector<std
         evaluatedArgs.push_back(arg->evaluate());
     }
 
+    Value implicitThis;
+    bool hasImplicitThis = false;
+    if (thisBindingMode == ThisBindingMode::CONSTRUCTOR_NEW) {
+        implicitThis = Value(std::make_shared<ArrayObject>());
+        implicitThis.customType = classNameForThis;
+        hasImplicitThis = true;
+    } else if (thisBindingMode == ThisBindingMode::FIRST_ARG_INSTANCE) {
+        if (!evaluatedArgs.empty() &&
+            evaluatedArgs[0].type == ValueType::ARRAY &&
+            evaluatedArgs[0].customType == classNameForThis) {
+            implicitThis = evaluatedArgs[0];
+            hasImplicitThis = true;
+        }
+    }
+
     pushScope();
     for (size_t i = 0; i < fn->params.size(); ++i) {
         ScopeStack.back()[fn->params[i]] = {evaluatedArgs[i], false};
+    }
+    if (hasImplicitThis) {
+        ScopeStack.back()["THIS"] = {implicitThis, false};
     }
 
     try {
@@ -46,11 +99,36 @@ Value invokeUserFunction(const std::string& qualifiedName, const std::vector<std
             stmt->execute();
         }
     } catch (const FunctionReturnSignal& signal) {
+        Value returnValue = signal.value;
         popScope();
-        return signal.value;
+
+        if (thisBindingMode == ThisBindingMode::CONSTRUCTOR_NEW) {
+            if (returnValue.type == ValueType::NOTHING) {
+                return implicitThis;
+            }
+
+            if (returnValue.type != ValueType::ARRAY) {
+                throw std::runtime_error("Class constructor " + classNameForThis + "::NEW must return an array/object value or NOTHING");
+            }
+
+            if (returnValue.customType.empty()) {
+                returnValue.customType = classNameForThis;
+            } else if (returnValue.customType != classNameForThis) {
+                throw std::runtime_error("Class constructor " + classNameForThis + "::NEW returned object with mismatched class type " + returnValue.customType);
+            }
+
+            return returnValue;
+        }
+
+        return returnValue;
     }
 
     popScope();
+
+    if (thisBindingMode == ThisBindingMode::CONSTRUCTOR_NEW) {
+        return implicitThis;
+    }
+
     return Value();
 }
 
@@ -101,13 +179,72 @@ std::string parseNamespaceDirective(std::string& src) {
 }
 
 Value invokeNamespaceFunction(const std::string& namespaceName, const std::string& function, const std::vector<std::unique_ptr<Expr>>& args) {
+    if ((function == "IS_INSTANCE_OF" || function == "ISINSTANCEOF") &&
+        DefinedClasses.find(namespaceName) != DefinedClasses.end()) {
+        if (args.size() != 2) {
+            throw std::runtime_error(namespaceName + "::" + function + " expects 2 arguments: (instance, classType)");
+        }
+
+        const Value instanceValue = args[0]->evaluate();
+        const Value targetValue = args[1]->evaluate();
+
+        if (instanceValue.type != ValueType::ARRAY || instanceValue.customType.empty()) {
+            throw std::runtime_error(namespaceName + "::" + function + " first argument must be a class instance");
+        }
+
+        std::string targetClass;
+        if (targetValue.type == ValueType::CLASS) {
+            targetClass = targetValue.string;
+        } else if (targetValue.type == ValueType::ARRAY && !targetValue.customType.empty()) {
+            targetClass = targetValue.customType;
+        } else {
+            throw std::runtime_error(namespaceName + "::" + function + " second argument must be a class type or class instance");
+        }
+
+        if (DefinedClasses.find(targetClass) == DefinedClasses.end()) {
+            throw std::runtime_error(namespaceName + "::" + function + " target class is not defined: " + targetClass);
+        }
+
+        Value result;
+        result.type = ValueType::BOOLEAN;
+        result.boolean = isClassOrDerivedFrom(instanceValue.customType, targetClass);
+        return result;
+    }
+
     Value nativeResult;
     if (tryInvokeNativeNamespaceFunction(namespaceName, function, args, nativeResult)) {
         return nativeResult;
     }
 
-    const std::string qualifiedName = getQualifiedFunctionName(namespaceName, function);
+    std::string ownerNamespace = namespaceName;
+    std::string qualifiedName = getQualifiedFunctionName(ownerNamespace, function);
+
+    if (UserFunctions.find(qualifiedName) == UserFunctions.end() &&
+        DefinedClasses.find(namespaceName) != DefinedClasses.end()) {
+        const std::string resolvedOwner = resolveClassFunctionNamespace(namespaceName, function);
+        if (!resolvedOwner.empty()) {
+            ownerNamespace = resolvedOwner;
+            qualifiedName = getQualifiedFunctionName(ownerNamespace, function);
+        }
+    }
+
     if (UserFunctions.find(qualifiedName) != UserFunctions.end()) {
+        if (DefinedClasses.find(namespaceName) != DefinedClasses.end()) {
+            if (function == "NEW") {
+                return invokeUserFunction(
+                    qualifiedName,
+                    args,
+                    namespaceName,
+                    ThisBindingMode::CONSTRUCTOR_NEW);
+            }
+
+            return invokeUserFunction(
+                qualifiedName,
+                args,
+                namespaceName,
+                ThisBindingMode::FIRST_ARG_INSTANCE);
+        }
+
         return invokeUserFunction(qualifiedName, args);
     }
 
@@ -194,12 +331,20 @@ void ExprStatement::execute() {
 }
 
 void IfStatement::execute() {
-    Value cond = resolvePotentialBoolean(condition->evaluate());
-    if (cond.type != ValueType::BOOLEAN)
-        throw std::runtime_error("IF condition must be boolean");
-    if (cond.boolean) {
-        for (auto& stmt : body)
-            stmt->execute();
+    for (auto& branch : branches) {
+        Value cond = resolvePotentialBoolean(branch.condition->evaluate());
+        if (cond.type != ValueType::BOOLEAN)
+            throw std::runtime_error("IF condition must be boolean");
+
+        if (cond.boolean) {
+            for (auto& stmt : branch.body)
+                stmt->execute();
+            return;
+        }
+    }
+
+    for (auto& stmt : elseBody) {
+        stmt->execute();
     }
 }
 
@@ -317,6 +462,88 @@ void FunctionDeclStatement::execute() {
     def->body = std::move(body);
 
     UserFunctions[getQualifiedFunctionName(activeNamespace, name)] = std::move(def);
+}
+
+void ClassDeclStatement::execute() {
+    if (!baseClass.empty()) {
+        if (baseClass == name) {
+            throw std::runtime_error("Class " + name + " cannot inherit from itself");
+        }
+        if (DefinedClasses.find(baseClass) == DefinedClasses.end()) {
+            throw std::runtime_error("Class " + name + " inherits from undefined class " + baseClass);
+        }
+    }
+
+    for (const auto& interfaceName : implementedInterfaces) {
+        if (interfaceName == name) {
+            throw std::runtime_error("Class " + name + " cannot implement itself");
+        }
+        if (DefinedClasses.find(interfaceName) == DefinedClasses.end()) {
+            throw std::runtime_error("Class " + name + " implements undefined class/interface " + interfaceName);
+        }
+    }
+
+    if (!baseClass.empty()) {
+        std::unordered_set<std::string> seen;
+        std::string current = baseClass;
+        while (!current.empty() && seen.insert(current).second) {
+            if (current == name) {
+                throw std::runtime_error("Inheritance cycle detected for class " + name);
+            }
+
+            auto parentIt = ClassParents.find(current);
+            if (parentIt == ClassParents.end()) {
+                break;
+            }
+            current = parentIt->second;
+        }
+    }
+
+    DefinedClasses.insert(name);
+    if (!baseClass.empty()) {
+        ClassParents[name] = baseClass;
+    } else {
+        ClassParents.erase(name);
+    }
+    ClassImplements[name] = implementedInterfaces;
+
+    NamespaceStack.push_back(name);
+    try {
+        for (auto& stmt : body) {
+            stmt->execute();
+        }
+    } catch (...) {
+        NamespaceStack.pop_back();
+        throw;
+    }
+    NamespaceStack.pop_back();
+
+    for (const auto& interfaceName : implementedInterfaces) {
+        const auto requiredMethods = getClassPublicMethodNames(interfaceName);
+        for (const auto& methodName : requiredMethods) {
+            const std::string owner = resolveClassFunctionNamespace(name, methodName);
+            if (owner.empty()) {
+                throw std::runtime_error(
+                    "Class " + name + " does not implement required method " +
+                    interfaceName + "::" + methodName);
+            }
+        }
+    }
+}
+
+void OperatorDeclStatement::execute() {
+    if (NamespaceStack.empty()) {
+        throw std::runtime_error("OPERATOR declarations are only valid inside CLASS blocks");
+    }
+
+    const std::string className = NamespaceStack.back();
+    const std::string overloadFunctionName = getOperatorOverloadFunctionName(opSymbol);
+
+    auto def = std::make_shared<FunctionDefinition>();
+    def->params = std::move(params);
+    def->body = std::move(body);
+
+    UserFunctions[getQualifiedFunctionName(className, overloadFunctionName)] = std::move(def);
 }
 
 void ReturnStatement::execute() {
